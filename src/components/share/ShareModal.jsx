@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
 import { useToast } from '../../hooks/useToast'
-import { LOGO_B64 } from '../../lib/logoBase64'
 
 export default function ShareModal({ book, progress, mode = 'feed', quoteText = '', onClose }) {
   const canvasRef  = useRef()
@@ -16,15 +15,34 @@ export default function ShareModal({ book, progress, mode = 'feed', quoteText = 
     || `${progress}% do livro lido com leitura ativa pelo StepBook.`
   const storyQuote  = quoteText || feedText
 
+  // Limpar título — remover nome de arquivo se necessário
+  const cleanTitle = (t = '') => t
+    .replace(/[-_]/g, ' ')
+    .replace(/\.(pdf|txt)$/i, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 60)
+
+  const bookTitle  = cleanTitle(book.title)
+  const bookAuthor = book.author || ''
+
   useEffect(() => { if (tab === 'feed')    renderFeed()    }, [tab, selRef, stars])
   useEffect(() => { if (tab === 'stories') renderStories() }, [tab, quoteText])
 
-  // ── LOGO preload ─────────────────────────────────────────
+  // ── LOGO — carrega como imagem (fundo transparente preservado) ──
   const getLogoImg = () => new Promise(res => {
     const img = new Image()
+    // Usar URL absoluta para garantir que o canvas consiga carregar
+    img.crossOrigin = 'anonymous'
     img.onload = () => res(img)
-    img.onerror = () => res(null)
-    img.src = LOGO_B64
+    img.onerror = () => {
+      // Fallback: tenta URL relativa
+      const img2 = new Image()
+      img2.onload = () => res(img2)
+      img2.onerror = () => res(null)
+      img2.src = '/logo.png'
+    }
+    img.src = window.location.origin + '/logo.png'
   })
 
   // ── CARD FEED 1080×1080 ──────────────────────────────────
@@ -37,7 +55,7 @@ export default function ShareModal({ book, progress, mode = 'feed', quoteText = 
 
     // BG gradient
     const bg = ctx.createLinearGradient(0, 0, 0, H)
-    bg.addColorStop(0, '#0a0a0a'); bg.addColorStop(1, '#111827')
+    bg.addColorStop(0, '#080c14'); bg.addColorStop(1, '#101820')
     ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H)
 
     // Gold top bar
@@ -46,26 +64,26 @@ export default function ShareModal({ book, progress, mode = 'feed', quoteText = 
     barG.addColorStop(0.85, '#DEAD2A'); barG.addColorStop(1, 'transparent')
     ctx.fillStyle = barG; ctx.fillRect(0, 0, W, 5)
 
-    // Logo top-right
+    // Logo top-right (sem fundo escuro)
     const logoImg = await getLogoImg()
     if (logoImg) {
-      ctx.drawImage(logoImg, W - 130, 20, 55, 55)
+      ctx.drawImage(logoImg, W - 128, 18, 52, 52)
     }
     ctx.fillStyle = '#DEAD2A'
-    ctx.font = '600 22px "Georgia", serif'
+    ctx.font = '600 20px sans-serif'
     ctx.textAlign = 'right'
-    ctx.fillText('StepBook', W - 145, 56)
+    ctx.fillText('StepBook', W - 138, 52)
     ctx.textAlign = 'left'
 
     // Cover
     const coverSrc = book.cover_url || (book.cover_b64 ? `data:image/jpeg;base64,${book.cover_b64}` : null)
-    const CX = 80, CY = 180, CW = 300, CH = 450
+    const CX = 80, CY = 180, CW = 290, CH = 435
     if (coverSrc) {
       await new Promise(res => {
         const img = new Image(); img.crossOrigin = 'anonymous'
         img.onload = () => {
           ctx.save()
-          ctx.shadowColor = 'rgba(0,0,0,0.9)'; ctx.shadowBlur = 50; ctx.shadowOffsetX = 12
+          ctx.shadowColor = 'rgba(0,0,0,0.9)'; ctx.shadowBlur = 40; ctx.shadowOffsetX = 10
           ctx.drawImage(img, CX, CY, CW, CH); ctx.restore()
           ctx.strokeStyle = '#DEAD2A'; ctx.lineWidth = 2; ctx.strokeRect(CX, CY, CW, CH); res()
         }
@@ -74,59 +92,59 @@ export default function ShareModal({ book, progress, mode = 'feed', quoteText = 
     } else {
       ctx.fillStyle = '#0d1a2e'; ctx.fillRect(CX, CY, CW, CH)
       ctx.strokeStyle = '#DEAD2A'; ctx.lineWidth = 2; ctx.strokeRect(CX, CY, CW, CH)
-      ctx.fillStyle = '#DEAD2A'; ctx.font = '80px serif'; ctx.textAlign = 'center'
-      ctx.fillText(book.emoji || '📖', CX + CW / 2, CY + CH / 2 + 30); ctx.textAlign = 'left'
+      ctx.fillStyle = '#DEAD2A'; ctx.font = '72px serif'; ctx.textAlign = 'center'
+      ctx.fillText(book.emoji || '📖', CX + CW/2, CY + CH/2 + 25); ctx.textAlign = 'left'
     }
 
     // Right column
-    const RX = 430
+    const RX = 420; ctx.textAlign = 'left'
 
     // Badge
     ctx.fillStyle = 'rgba(222,173,42,0.15)'
-    rrect(ctx, RX, 190, 200, 38, 19); ctx.fill()
-    ctx.fillStyle = '#DEAD2A'; ctx.font = '600 14px sans-serif'
-    ctx.textAlign = 'center'; ctx.fillText('STEPBOOK', RX + 100, 215); ctx.textAlign = 'left'
+    rrect(ctx, RX, 190, 185, 34, 17); ctx.fill()
+    ctx.fillStyle = '#DEAD2A'; ctx.font = 'bold 12px sans-serif'
+    ctx.textAlign = 'center'; ctx.fillText('STEPBOOK', RX + 92, 212); ctx.textAlign = 'left'
 
-    // Title
-    ctx.fillStyle = '#FFFFFF'; ctx.font = '700 38px "Georgia", serif'
-    wrapText(ctx, book.title || 'Sem título', RX, 295, 560, 50)
+    // Title — com wrap correto
+    ctx.fillStyle = '#FFFFFF'; ctx.font = 'bold 34px "Georgia", serif'
+    wrapText(ctx, bookTitle, RX, 288, 580, 44, 3)
 
     // Author
-    ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.font = '400 24px sans-serif'
-    ctx.fillText(book.author || '', RX, 415)
+    ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.font = '400 22px sans-serif'
+    ctx.fillText(bookAuthor.slice(0, 40), RX, 400)
 
     // Stars
     for (let i = 0; i < 5; i++) {
       ctx.fillStyle = i < stars ? '#DEAD2A' : 'rgba(255,255,255,0.2)'
-      ctx.font = '28px serif'; ctx.fillText('★', RX + i * 36, 462)
+      ctx.font = '26px serif'; ctx.fillText('★', RX + i * 33, 448)
     }
 
     // Progress bar
-    ctx.fillStyle = 'rgba(255,255,255,0.1)'; rrect(ctx, RX, 490, 560, 10, 5); ctx.fill()
-    const pG = ctx.createLinearGradient(RX, 0, RX + (progress / 100) * 560, 0)
+    ctx.fillStyle = 'rgba(255,255,255,0.1)'; rrect(ctx, RX, 474, 540, 9, 4); ctx.fill()
+    const pw = (progress / 100) * 540
+    const pG = ctx.createLinearGradient(RX, 0, RX + pw, 0)
     pG.addColorStop(0, '#DEAD2A'); pG.addColorStop(1, '#f5c842')
-    ctx.fillStyle = pG; rrect(ctx, RX, 490, (progress / 100) * 560, 10, 5); ctx.fill()
-    ctx.fillStyle = '#DEAD2A'; ctx.font = '600 18px sans-serif'
-    ctx.fillText(`${progress}% lido`, RX, 530)
+    ctx.fillStyle = pG; rrect(ctx, RX, 474, pw, 9, 4); ctx.fill()
+    ctx.fillStyle = '#DEAD2A'; ctx.font = 'bold 16px sans-serif'
+    ctx.fillText(`${progress}% lido`, RX, 510)
 
     // Divider
     const dG = ctx.createLinearGradient(80, 0, W - 80, 0)
-    dG.addColorStop(0, 'transparent'); dG.addColorStop(0.25, 'rgba(222,173,42,0.5)')
-    dG.addColorStop(0.75, 'rgba(222,173,42,0.5)'); dG.addColorStop(1, 'transparent')
+    dG.addColorStop(0, 'transparent'); dG.addColorStop(0.2, 'rgba(222,173,42,0.6)')
+    dG.addColorStop(0.8, 'rgba(222,173,42,0.6)'); dG.addColorStop(1, 'transparent')
     ctx.strokeStyle = dG; ctx.lineWidth = 1
-    ctx.beginPath(); ctx.moveTo(80, 700); ctx.lineTo(W - 80, 700); ctx.stroke()
+    ctx.beginPath(); ctx.moveTo(80, 690); ctx.lineTo(W - 80, 690); ctx.stroke()
 
     // Reflection
-    ctx.fillStyle = 'rgba(255,255,255,0.78)'; ctx.font = 'italic 400 26px "Georgia", serif'
-    const ref = `"${feedText.slice(0, 150)}${feedText.length > 150 ? '…' : ''}"`
-    wrapText(ctx, ref, 80, 758, W - 160, 38)
+    ctx.fillStyle = 'rgba(255,255,255,0.78)'; ctx.font = 'italic 400 24px "Georgia", serif'
+    wrapText(ctx, `"${feedText.slice(0, 160)}"`, 80, 745, W - 160, 36, 4)
 
     // Footer
-    ctx.fillStyle = 'rgba(255,255,255,0.28)'; ctx.font = '400 18px sans-serif'
+    ctx.fillStyle = 'rgba(255,255,255,0.28)'; ctx.font = '400 16px sans-serif'
     ctx.textAlign = 'right'; ctx.fillText('stepbook.vercel.app', W - 80, H - 40)
   }
 
-  // ── CARD STORIES 1080×1920 — fiel à imagem de referência ─
+  // ── CARD STORIES 1080×1920 ───────────────────────────────
   const renderStories = async () => {
     const canvas = storiesRef.current
     if (!canvas) return
@@ -134,102 +152,122 @@ export default function ShareModal({ book, progress, mode = 'feed', quoteText = 
     const W = 1080, H = 1920
     canvas.width = W; canvas.height = H
 
-    // BG azul marinho (fiel à imagem: #0a1428 → #0d1f40)
-    const bg = ctx.createLinearGradient(0, 0, W * 0.3, H)
+    // BG azul marinho
+    const bg = ctx.createLinearGradient(0, 0, 0, H)
     bg.addColorStop(0,   '#071020')
-    bg.addColorStop(0.5, '#0a1a35')
-    bg.addColorStop(1,   '#0d2040')
+    bg.addColorStop(0.5, '#091830')
+    bg.addColorStop(1,   '#0c1e3a')
     ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H)
 
-    // ── Ondas douradas fluidas (lado direito, como na imagem) ──
-    ctx.save()
-    ctx.globalAlpha = 0.55
-    // Onda 1 — grande, lado direito
-    for (let pass = 0; pass < 6; pass++) {
-      ctx.beginPath()
-      ctx.strokeStyle = '#DEAD2A'
-      ctx.lineWidth   = pass === 0 ? 2.5 : 1
-      ctx.globalAlpha = pass === 0 ? 0.7 : 0.25 - pass * 0.03
-      const startX = W * 0.45 + pass * 18
-      ctx.moveTo(startX, 0)
-      for (let y = 0; y <= H; y += 6) {
-        const x = startX + Math.sin(y * 0.004 + pass * 0.8) * (120 + pass * 20)
-               + Math.sin(y * 0.008 + pass) * (60 + pass * 10)
-        ctx.lineTo(x, y)
-      }
-      ctx.stroke()
-    }
-    ctx.restore()
+    // ── Ondas douradas (lado direito, múltiplas linhas) ──
+    drawWaves(ctx, W, H)
 
-    // ── Logo centralizada no topo ──
+    // ── Logo centralizada no topo (SEM fundo) ──
     const logoImg = await getLogoImg()
-    const logoSize = 120
-    const logoX = W / 2 - logoSize / 2
+    const LS = 130
+    const LX = W / 2 - LS / 2
     if (logoImg) {
-      // Glow dourado atrás da logo
       ctx.save()
-      ctx.shadowColor  = 'rgba(222,173,42,0.6)'
-      ctx.shadowBlur   = 30
-      ctx.drawImage(logoImg, logoX, 100, logoSize, logoSize)
+      ctx.shadowColor = 'rgba(222,173,42,0.5)'
+      ctx.shadowBlur  = 24
+      ctx.drawImage(logoImg, LX, 90, LS, LS)
       ctx.restore()
+    } else {
+      // Fallback SVG inline
+      ctx.fillStyle = '#DEAD2A'
+      ctx.font = '90px serif'
+      ctx.textAlign = 'center'
+      ctx.fillText('📖', W/2, 200)
     }
 
-    // StepBook abaixo da logo
-    ctx.fillStyle   = '#DEAD2A'
-    ctx.font        = '700 64px "Georgia", serif'
-    ctx.textAlign   = 'center'
-    ctx.shadowColor = 'rgba(222,173,42,0.3)'
-    ctx.shadowBlur  = 10
-    ctx.fillText('StepBook', W / 2, 268)
-    ctx.shadowBlur  = 0
-
-    // Subtítulo "Li essa frase pelo StepBook que me fez refletir"
-    ctx.fillStyle = 'rgba(255,255,255,0.70)'
-    ctx.font      = '400 34px "Georgia", serif'
-    ctx.fillText('Li essa frase pelo StepBook', W / 2, 345)
-    ctx.fillText('que me fez refletir', W / 2, 388)
-
-    // Linha dourada superior da frase
-    goldLine(ctx, W, 440)
-
-    // ── Frase principal (grande, centralizada, branca) ──
-    const quote = storyQuote.slice(0, 240)
-    ctx.fillStyle = '#FFFFFF'
-    ctx.font      = 'italic bold 58px "Georgia", serif'
+    // StepBook
+    ctx.fillStyle = '#DEAD2A'
+    ctx.font      = 'bold 68px "Georgia", serif'
     ctx.textAlign = 'center'
-    ctx.shadowColor = 'rgba(0,0,0,0.4)'
+    ctx.shadowColor = 'rgba(222,173,42,0.25)'
     ctx.shadowBlur  = 8
-    wrapTextCtr(ctx, `\u201c${quote}\u201d`, W / 2, 580, W - 160, 76)
-    ctx.shadowBlur  = 0
+    ctx.fillText('StepBook', W / 2, 275)
+    ctx.shadowBlur = 0
 
-    // Linha dourada inferior
-    goldLine(ctx, W, 1440)
+    // Subtítulo
+    ctx.fillStyle = 'rgba(255,255,255,0.65)'
+    ctx.font      = '400 36px "Georgia", serif'
+    ctx.fillText('Li essa frase pelo StepBook', W / 2, 350)
+    ctx.fillText('que me fez refletir', W / 2, 396)
+
+    // Linha dourada
+    goldLine(ctx, W, 446)
+
+    // Frase principal
+    const quote = storyQuote.slice(0, 280)
+    ctx.fillStyle   = '#FFFFFF'
+    ctx.font        = 'italic bold 60px "Georgia", serif'
+    ctx.textAlign   = 'center'
+    ctx.shadowColor = 'rgba(0,0,0,0.3)'
+    ctx.shadowBlur  = 6
+    wrapTextCtr(ctx, `\u201c${quote}\u201d`, W / 2, 600, W - 140, 80, 8)
+    ctx.shadowBlur = 0
+
+    // Linha inferior
+    goldLine(ctx, W, 1450)
 
     // Livro
-    ctx.fillStyle = 'rgba(255,255,255,0.55)'
-    ctx.font      = '400 36px sans-serif'
+    ctx.fillStyle = 'rgba(255,255,255,0.5)'
+    ctx.font      = '400 38px sans-serif'
     ctx.textAlign = 'center'
-    ctx.fillText('Livro:', W / 2, 1520)
+    ctx.fillText('Livro:', W / 2, 1530)
 
     ctx.fillStyle = '#DEAD2A'
-    ctx.font      = '600 40px "Georgia", serif'
-    wrapTextCtr(ctx, book.title || '', W / 2, 1578, W - 200, 50)
+    ctx.font      = 'bold 42px "Georgia", serif'
+    wrapTextCtr(ctx, bookTitle, W / 2, 1592, W - 160, 52, 2)
 
-    // URL rodapé
-    ctx.fillStyle = 'rgba(255,255,255,0.35)'
+    // URL
+    ctx.fillStyle = 'rgba(255,255,255,0.32)'
     ctx.font      = '400 30px sans-serif'
     ctx.fillText('stepbook.vercel.app', W / 2, H - 55)
   }
 
+  // ── Ondas douradas fiel à referência ───────────────────
+  function drawWaves(ctx, W, H) {
+    // Onda principal dourada (à direita, como na imagem)
+    const waveConfigs = [
+      { startFrac: 0.38, amp1: 140, amp2: 70, freq1: 0.0030, freq2: 0.0055, lw: 2.0, alpha: 0.85 },
+      { startFrac: 0.42, amp1: 110, amp2: 55, freq1: 0.0032, freq2: 0.0058, lw: 1.2, alpha: 0.45 },
+      { startFrac: 0.46, amp1: 130, amp2: 65, freq1: 0.0028, freq2: 0.0052, lw: 0.8, alpha: 0.25 },
+      { startFrac: 0.50, amp1: 100, amp2: 50, freq1: 0.0035, freq2: 0.0060, lw: 0.6, alpha: 0.18 },
+      { startFrac: 0.55, amp1: 120, amp2: 60, freq1: 0.0025, freq2: 0.0048, lw: 0.5, alpha: 0.12 },
+      // Reflexo suave à esquerda
+      { startFrac: 0.20, amp1: 60,  amp2: 30, freq1: 0.0028, freq2: 0.0050, lw: 0.5, alpha: 0.10 },
+    ]
+
+    for (const wc of waveConfigs) {
+      ctx.save()
+      ctx.globalAlpha  = wc.alpha
+      ctx.strokeStyle  = '#DEAD2A'
+      ctx.lineWidth    = wc.lw
+      ctx.beginPath()
+      const startX = W * wc.startFrac
+      ctx.moveTo(startX, 0)
+      for (let y = 0; y <= H; y += 4) {
+        const x = startX
+          + Math.sin(y * wc.freq1) * wc.amp1
+          + Math.sin(y * wc.freq2 + 1.5) * wc.amp2
+        ctx.lineTo(x, y)
+      }
+      ctx.stroke()
+      ctx.restore()
+    }
+  }
+
   // ── HELPERS ─────────────────────────────────────────────
   function goldLine(ctx, W, y) {
-    const g = ctx.createLinearGradient(80, 0, W - 80, 0)
-    g.addColorStop(0, 'transparent')
-    g.addColorStop(0.2, 'rgba(222,173,42,0.8)')
-    g.addColorStop(0.8, 'rgba(222,173,42,0.8)')
-    g.addColorStop(1, 'transparent')
+    const g = ctx.createLinearGradient(60, 0, W - 60, 0)
+    g.addColorStop(0,   'transparent')
+    g.addColorStop(0.15,'rgba(222,173,42,0.9)')
+    g.addColorStop(0.85,'rgba(222,173,42,0.9)')
+    g.addColorStop(1,   'transparent')
     ctx.strokeStyle = g; ctx.lineWidth = 1.5
-    ctx.beginPath(); ctx.moveTo(80, y); ctx.lineTo(W - 80, y); ctx.stroke()
+    ctx.beginPath(); ctx.moveTo(60, y); ctx.lineTo(W - 60, y); ctx.stroke()
   }
 
   function rrect(ctx, x, y, w, h, r) {
@@ -240,25 +278,27 @@ export default function ShareModal({ book, progress, mode = 'feed', quoteText = 
     ctx.lineTo(x,y+r); ctx.arcTo(x,y,x+r,y,r); ctx.closePath()
   }
 
-  function wrapText(ctx, text, x, y, maxW, lh) {
-    const words = text.split(' '); let line = '', cy = y
+  function wrapText(ctx, text, x, y, maxW, lh, maxLines = 99) {
+    const words = text.split(' '); let line = '', cy = y, lines = 0
     for (const w of words) {
       const t = line + w + ' '
       if (ctx.measureText(t).width > maxW && line) {
-        ctx.fillText(line.trim(), x, cy); line = w + ' '; cy += lh
-        if (cy > 1900) break
+        ctx.fillText(line.trim(), x, cy)
+        line = w + ' '; cy += lh; lines++
+        if (lines >= maxLines) { ctx.fillText('…', x, cy); return }
       } else line = t
     }
     if (line) ctx.fillText(line.trim(), x, cy)
   }
 
-  function wrapTextCtr(ctx, text, cx, y, maxW, lh) {
-    const words = text.split(' '); let line = '', cy = y
+  function wrapTextCtr(ctx, text, cx, y, maxW, lh, maxLines = 99) {
+    const words = text.split(' '); let line = '', cy = y, lines = 0
     for (const w of words) {
       const t = line + w + ' '
       if (ctx.measureText(t).width > maxW && line) {
-        ctx.fillText(line.trim(), cx, cy); line = w + ' '; cy += lh
-        if (cy > 1900) break
+        ctx.fillText(line.trim(), cx, cy)
+        line = w + ' '; cy += lh; lines++
+        if (lines >= maxLines) { ctx.fillText('…', cx, cy); return }
       } else line = t
     }
     if (line) ctx.fillText(line.trim(), cx, cy)
@@ -270,23 +310,23 @@ export default function ShareModal({ book, progress, mode = 'feed', quoteText = 
   const download = () => {
     const a = document.createElement('a')
     a.href = getCanvas().toDataURL('image/png')
-    a.download = `stepbook-${tab}-${(book.title || 'card').replace(/\s+/g,'-')}.png`
+    a.download = `stepbook-${tab}-${bookTitle.replace(/\s+/g,'-').slice(0,30)}.png`
     a.click(); toast('Imagem salva! ✅')
   }
 
   const shareWA = () => {
     const txt = encodeURIComponent(
       tab === 'stories' && quoteText
-        ? `"${quoteText}"\n\n— ${book.title}\n\nstepbook.vercel.app`
-        : `Estou lendo "${book.title}" — ${progress}% concluído!\n\nstepbook.vercel.app`
+        ? `"${quoteText}"\n\n— ${bookTitle}\n\nstepbook.vercel.app`
+        : `Estou lendo "${bookTitle}" — ${progress}% concluído!\n\nstepbook.vercel.app`
     )
     window.open(`https://wa.me/?text=${txt}`, '_blank')
   }
 
   const copyText = async () => {
     const t = tab === 'stories' && quoteText
-      ? `"${quoteText}" — ${book.title} | stepbook.vercel.app`
-      : `Estou lendo "${book.title}" — ${progress}% lido! stepbook.vercel.app`
+      ? `"${quoteText}" — ${bookTitle} | stepbook.vercel.app`
+      : `Estou lendo "${bookTitle}" — ${progress}% lido! stepbook.vercel.app`
     await navigator.clipboard.writeText(t); toast('Texto copiado!')
   }
 
@@ -339,7 +379,7 @@ export default function ShareModal({ book, progress, mode = 'feed', quoteText = 
               <canvas ref={storiesRef} style={styles.storiesPrev} />
             </div>
             {storyQuote && (
-              <div style={{ marginBottom:10 }}>
+              <div style={{ marginBottom:8 }}>
                 <span style={styles.lbl}>Frase no card:</span>
                 <p style={styles.quoteP}>
                   "{storyQuote.slice(0,100)}{storyQuote.length>100?'…':''}"
@@ -347,14 +387,14 @@ export default function ShareModal({ book, progress, mode = 'feed', quoteText = 
               </div>
             )}
             {!quoteText && (
-              <p style={{ fontSize:'0.78rem', color:'var(--text3)', marginBottom:10 }}>
+              <p style={{ fontSize:'0.76rem', color:'var(--text3)', marginBottom:8 }}>
                 💡 Selecione um trecho do texto e toque no botão 💬 para criar um card personalizado.
               </p>
             )}
           </>
         )}
 
-        {/* Botões de compartilhamento */}
+        {/* Botões */}
         <div style={styles.grid}>
           <button className="btn btn-gold btn-sm" onClick={shareWA}>💬 WhatsApp</button>
           <button className="btn btn-ghost btn-sm" onClick={() => { download(); toast('Baixada! Salve nos Stories 📸') }}>📸 Instagram</button>
@@ -383,27 +423,16 @@ const styles = {
     cursor:'pointer', fontFamily:"'DM Sans',sans-serif",
   },
   tabOn: { background:'var(--gold-dim2)', borderColor:'var(--gold)', color:'var(--gold)' },
-  preview: {
-    width:'100%', borderRadius:8,
-    border:'1px solid var(--border2)', marginBottom:12,
-  },
-  storiesPrev: {
-    height:340, borderRadius:8,
-    border:'1px solid var(--border2)',
-    aspectRatio:'9/16',
-  },
+  preview: { width:'100%', borderRadius:8, border:'1px solid var(--border2)', marginBottom:12 },
+  storiesPrev: { height:340, borderRadius:8, border:'1px solid var(--border2)', aspectRatio:'9/16' },
   lbl: {
     fontSize:'0.72rem', fontWeight:600, color:'var(--text3)',
     textTransform:'uppercase', letterSpacing:'0.08em', display:'block',
   },
-  star: {
-    background:'none', border:'none', fontSize:'1.3rem',
-    cursor:'pointer', padding:'0 2px',
-  },
+  star: { background:'none', border:'none', fontSize:'1.3rem', cursor:'pointer', padding:'0 2px' },
   quoteP: {
     color:'var(--gold)', fontStyle:'italic',
-    fontFamily:"'Crimson Pro',serif", fontSize:'0.9rem',
-    lineHeight:1.5, marginTop:4,
+    fontFamily:"'Crimson Pro',serif", fontSize:'0.9rem', lineHeight:1.5, marginTop:4,
   },
   grid: { display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:8 },
 }
