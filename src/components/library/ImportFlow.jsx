@@ -38,13 +38,27 @@ export default function ImportFlow({ file, onDone, onOpenBook }) {
       setStep(2)
       const chapters = detectChapters(pages)
 
-      // Step 3 — clean text
+      // Step 3 — clean text (com timeout de 30s, falha silenciosa)
       setStep(3)
-      const cleanPages = await cleanTextAI(pages, meta.title || rawTitle)
+      let cleanPages = pages
+      try {
+        const cleaned = await Promise.race([
+          cleanTextAI(pages, meta.title || rawTitle),
+          new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 30000))
+        ])
+        if (cleaned?.length) cleanPages = cleaned
+      } catch { /* usa páginas originais se IA falhar */ }
 
-      // Step 4 — make questions
+      // Step 4 — make questions (com timeout de 45s, fallback para MCQs automáticas)
       setStep(4)
-      let questions = await makeQuestionsAI(cleanPages, meta.title || rawTitle, chapters)
+      let questions = []
+      try {
+        const generated = await Promise.race([
+          makeQuestionsAI(cleanPages, meta.title || rawTitle, chapters),
+          new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 45000))
+        ])
+        if (generated?.length) questions = generated
+      } catch { /* usa só MCQs automáticas se IA falhar */ }
       questions = injectAutoMCQ(questions, totalPages)
 
       // Step 5 — save
