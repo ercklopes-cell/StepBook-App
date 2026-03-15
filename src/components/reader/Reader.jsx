@@ -182,14 +182,14 @@ export default function Reader({ book: initialBook, onGoHome }) {
         {bookmarkExp ? `${progress}% lido` : `${progress}%`}
       </button>
 
-      {/* ── QUOTE BUTTON FLUTUANTE ─────────────── */}
+      {/* ── BOTÃO QUOTE (canto inferior direito) ──── */}
       <button
         style={styles.quoteBtn}
-        title="Criar card com frase selecionada"
+        title="Selecione um trecho e crie um card para compartilhar"
         onClick={() => {
           const sel = window.getSelection()?.toString().trim()
           if (!sel || sel.length < 10) {
-            toast('Selecione uma frase do texto para criar o card.')
+            toast('Selecione uma frase do texto primeiro.')
             return
           }
           setQuoteText(sel)
@@ -197,8 +197,17 @@ export default function Reader({ book: initialBook, onGoHome }) {
           setShareOpen(true)
         }}
       >
-        <span style={{ fontSize: '1.1rem' }}>✂️</span>
-        <span style={styles.quoteBtnLabel}>QUOTE</span>
+        {/* Ícone balão de mensagem (como no modelo) */}
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path
+            d="M21 15C21 15.5304 20.7893 16.0391 20.4142 16.4142C20.0391 16.7893 19.5304 17 19 17H7L3 21V5C3 4.46957 3.21071 3.96086 3.58579 3.58579C3.96086 3.21071 4.46957 3 5 3H19C19.5304 3 20.0391 3.21071 20.4142 3.58579C20.7893 3.96086 21 4.46957 21 5V15Z"
+            fill="#000"
+            stroke="#000"
+            strokeWidth="1"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
       </button>
 
       {/* ── CHAPTER PANEL ──────────────────────── */}
@@ -277,25 +286,19 @@ const styles = {
   },
   quoteBtn: {
     position: 'fixed',
-    bottom: 32,
-    left: '50%',
-    transform: 'translateX(-50%)',
+    bottom: 28,
+    right: 20,
+    width: 48,
+    height: 48,
+    borderRadius: '50%',
+    background: 'var(--gold)',
+    border: 'none',
+    cursor: 'pointer',
     display: 'flex',
     alignItems: 'center',
-    gap: 8,
-    background: 'var(--gold)',
-    color: '#000',
-    border: 'none',
-    borderRadius: 50,
-    padding: '10px 22px',
-    cursor: 'pointer',
-    fontFamily: "'DM Sans', sans-serif",
-    fontWeight: 700,
-    fontSize: '0.78rem',
-    letterSpacing: '0.1em',
-    boxShadow: '0 4px 24px rgba(222,173,42,0.4)',
+    justifyContent: 'center',
+    boxShadow: '0 4px 20px rgba(222,173,42,0.45)',
     zIndex: 50,
-    transition: 'all 0.2s ease',
+    transition: 'transform 0.15s ease, box-shadow 0.15s ease',
   },
-  quoteBtnLabel: { textTransform: 'uppercase' },
 }

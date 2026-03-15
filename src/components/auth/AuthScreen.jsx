@@ -30,9 +30,21 @@ export default function AuthScreen() {
       <div style={styles.glow} />
 
       <div style={styles.box}>
-        {/* Logo */}
+        {/* Logo com destaque */}
         <div style={styles.logo}>
-          <Logo size={44} textSize="1.5rem" />
+          <img
+            src="/logo.png"
+            alt="StepBook"
+            style={{
+              width: 72,
+              height: 72,
+              objectFit: 'contain',
+              filter: 'drop-shadow(0 0 14px rgba(222,173,42,0.5))',
+              display: 'block',
+              margin: '0 auto 4px',
+            }}
+          />
+          <span style={styles.logoText}>StepBook</span>
         </div>
 
         <h1 style={styles.title}>
@@ -132,16 +144,18 @@ const styles = {
   },
   logo: {
     display: 'flex',
+    flexDirection: 'column',
     alignItems: 'center',
-    gap: 10,
+    gap: 4,
     marginBottom: 28,
   },
   logoText: {
     fontFamily: "'Playfair Display', serif",
-    fontSize: '1.4rem',
+    fontSize: '1.6rem',
     fontWeight: 700,
     color: 'var(--gold)',
-    letterSpacing: '0.03em',
+    letterSpacing: '0.04em',
+    textAlign: 'center',
   },
   title: {
     fontFamily: "'Playfair Display', serif",

@@ -1,5 +1,5 @@
-// Logo component — usa a logo oficial do StepBook
-export default function Logo({ size = 32, showText = true, textSize = '1.15rem' }) {
+// Logo component — logo oficial StepBook (PNG fundo transparente)
+export default function Logo({ size = 36, showText = true, textSize = '1.15rem' }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
       <img
@@ -9,7 +9,7 @@ export default function Logo({ size = 32, showText = true, textSize = '1.15rem' 
           width: size,
           height: size,
           objectFit: 'contain',
-          filter: 'brightness(1)',
+          filter: 'drop-shadow(0 0 6px rgba(222,173,42,0.35))',
         }}
       />
       {showText && (

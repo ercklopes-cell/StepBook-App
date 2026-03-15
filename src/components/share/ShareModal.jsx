@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useToast } from '../../hooks/useToast'
+import { LOGO_B64 } from '../../lib/logoBase64'
 
 export default function ShareModal({ book, progress, mode = 'feed', quoteText = '', onClose }) {
   const canvasRef  = useRef()
@@ -13,9 +14,18 @@ export default function ShareModal({ book, progress, mode = 'feed', quoteText = 
   const reflections = book.reflections?.filter(r => r.answered) || []
   const feedText    = reflections[selRef]?.answer
     || `${progress}% do livro lido com leitura ativa pelo StepBook.`
+  const storyQuote  = quoteText || feedText
 
   useEffect(() => { if (tab === 'feed')    renderFeed()    }, [tab, selRef, stars])
   useEffect(() => { if (tab === 'stories') renderStories() }, [tab, quoteText])
+
+  // ── LOGO preload ─────────────────────────────────────────
+  const getLogoImg = () => new Promise(res => {
+    const img = new Image()
+    img.onload = () => res(img)
+    img.onerror = () => res(null)
+    img.src = LOGO_B64
+  })
 
   // ── CARD FEED 1080×1080 ──────────────────────────────────
   const renderFeed = async () => {
@@ -25,7 +35,7 @@ export default function ShareModal({ book, progress, mode = 'feed', quoteText = 
     const W = 1080, H = 1080
     canvas.width = W; canvas.height = H
 
-    // BG
+    // BG gradient
     const bg = ctx.createLinearGradient(0, 0, 0, H)
     bg.addColorStop(0, '#0a0a0a'); bg.addColorStop(1, '#111827')
     ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H)
@@ -37,13 +47,15 @@ export default function ShareModal({ book, progress, mode = 'feed', quoteText = 
     ctx.fillStyle = barG; ctx.fillRect(0, 0, W, 5)
 
     // Logo top-right
-    await drawLogoImg(ctx, W - 180, 22, 50)
-
-    // StepBook text next to logo
+    const logoImg = await getLogoImg()
+    if (logoImg) {
+      ctx.drawImage(logoImg, W - 130, 20, 55, 55)
+    }
     ctx.fillStyle = '#DEAD2A'
-    ctx.font = '700 26px "Georgia", serif'
+    ctx.font = '600 22px "Georgia", serif'
+    ctx.textAlign = 'right'
+    ctx.fillText('StepBook', W - 145, 56)
     ctx.textAlign = 'left'
-    ctx.fillText('StepBook', W - 120, 54)
 
     // Cover
     const coverSrc = book.cover_url || (book.cover_b64 ? `data:image/jpeg;base64,${book.cover_b64}` : null)
@@ -55,8 +67,7 @@ export default function ShareModal({ book, progress, mode = 'feed', quoteText = 
           ctx.save()
           ctx.shadowColor = 'rgba(0,0,0,0.9)'; ctx.shadowBlur = 50; ctx.shadowOffsetX = 12
           ctx.drawImage(img, CX, CY, CW, CH); ctx.restore()
-          ctx.strokeStyle = '#DEAD2A'; ctx.lineWidth = 2
-          ctx.strokeRect(CX, CY, CW, CH); res()
+          ctx.strokeStyle = '#DEAD2A'; ctx.lineWidth = 2; ctx.strokeRect(CX, CY, CW, CH); res()
         }
         img.onerror = res; img.src = coverSrc
       })
@@ -64,13 +75,13 @@ export default function ShareModal({ book, progress, mode = 'feed', quoteText = 
       ctx.fillStyle = '#0d1a2e'; ctx.fillRect(CX, CY, CW, CH)
       ctx.strokeStyle = '#DEAD2A'; ctx.lineWidth = 2; ctx.strokeRect(CX, CY, CW, CH)
       ctx.fillStyle = '#DEAD2A'; ctx.font = '80px serif'; ctx.textAlign = 'center'
-      ctx.fillText(book.emoji || '📖', CX + CW / 2, CY + CH / 2 + 30)
+      ctx.fillText(book.emoji || '📖', CX + CW / 2, CY + CH / 2 + 30); ctx.textAlign = 'left'
     }
 
     // Right column
-    const RX = 430; ctx.textAlign = 'left'
+    const RX = 430
 
-    // Badge STEPBOOK
+    // Badge
     ctx.fillStyle = 'rgba(222,173,42,0.15)'
     rrect(ctx, RX, 190, 200, 38, 19); ctx.fill()
     ctx.fillStyle = '#DEAD2A'; ctx.font = '600 14px sans-serif'
@@ -115,7 +126,7 @@ export default function ShareModal({ book, progress, mode = 'feed', quoteText = 
     ctx.textAlign = 'right'; ctx.fillText('stepbook.vercel.app', W - 80, H - 40)
   }
 
-  // ── CARD STORIES 1080×1920 ───────────────────────────────
+  // ── CARD STORIES 1080×1920 — fiel à imagem de referência ─
   const renderStories = async () => {
     const canvas = storiesRef.current
     if (!canvas) return
@@ -123,83 +134,102 @@ export default function ShareModal({ book, progress, mode = 'feed', quoteText = 
     const W = 1080, H = 1920
     canvas.width = W; canvas.height = H
 
-    // BG azul marinho
-    const bg = ctx.createLinearGradient(0, 0, 0, H)
-    bg.addColorStop(0, '#0a1428'); bg.addColorStop(0.5, '#0d1f3c'); bg.addColorStop(1, '#1a253f')
+    // BG azul marinho (fiel à imagem: #0a1428 → #0d1f40)
+    const bg = ctx.createLinearGradient(0, 0, W * 0.3, H)
+    bg.addColorStop(0,   '#071020')
+    bg.addColorStop(0.5, '#0a1a35')
+    bg.addColorStop(1,   '#0d2040')
     ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H)
 
-    // Ondas douradas
-    ctx.save(); ctx.globalAlpha = 0.18
-    for (let w = 0; w < 5; w++) {
-      ctx.beginPath(); ctx.strokeStyle = '#DEAD2A'; ctx.lineWidth = 1.5
-      const amp = 55 + w * 25, offset = w * 180
-      for (let x = 0; x <= W; x += 3) {
-        const y = H * 0.42 + offset + Math.sin(x * 0.0035 + w * 1.2) * amp
-        x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)
+    // ── Ondas douradas fluidas (lado direito, como na imagem) ──
+    ctx.save()
+    ctx.globalAlpha = 0.55
+    // Onda 1 — grande, lado direito
+    for (let pass = 0; pass < 6; pass++) {
+      ctx.beginPath()
+      ctx.strokeStyle = '#DEAD2A'
+      ctx.lineWidth   = pass === 0 ? 2.5 : 1
+      ctx.globalAlpha = pass === 0 ? 0.7 : 0.25 - pass * 0.03
+      const startX = W * 0.45 + pass * 18
+      ctx.moveTo(startX, 0)
+      for (let y = 0; y <= H; y += 6) {
+        const x = startX + Math.sin(y * 0.004 + pass * 0.8) * (120 + pass * 20)
+               + Math.sin(y * 0.008 + pass) * (60 + pass * 10)
+        ctx.lineTo(x, y)
       }
       ctx.stroke()
     }
     ctx.restore()
 
-    // Losangos dourados nos 4 cantos
-    ;[[70,70],[W-70,70],[70,H-70],[W-70,H-70]].forEach(([cx,cy]) => {
+    // ── Logo centralizada no topo ──
+    const logoImg = await getLogoImg()
+    const logoSize = 120
+    const logoX = W / 2 - logoSize / 2
+    if (logoImg) {
+      // Glow dourado atrás da logo
       ctx.save()
-      ctx.strokeStyle = '#DEAD2A'; ctx.lineWidth = 2.5; ctx.globalAlpha = 0.65
-      ctx.beginPath()
-      ctx.moveTo(cx, cy-75); ctx.lineTo(cx+75, cy)
-      ctx.lineTo(cx, cy+75); ctx.lineTo(cx-75, cy)
-      ctx.closePath(); ctx.stroke()
-      ctx.globalAlpha = 0.12; ctx.fillStyle = '#DEAD2A'; ctx.fill()
+      ctx.shadowColor  = 'rgba(222,173,42,0.6)'
+      ctx.shadowBlur   = 30
+      ctx.drawImage(logoImg, logoX, 100, logoSize, logoSize)
       ctx.restore()
-    })
+    }
 
-    // Logo centralizada no topo
-    await drawLogoImg(ctx, W / 2 - 55, 120, 110)
+    // StepBook abaixo da logo
+    ctx.fillStyle   = '#DEAD2A'
+    ctx.font        = '700 64px "Georgia", serif'
+    ctx.textAlign   = 'center'
+    ctx.shadowColor = 'rgba(222,173,42,0.3)'
+    ctx.shadowBlur  = 10
+    ctx.fillText('StepBook', W / 2, 268)
+    ctx.shadowBlur  = 0
 
-    // StepBook
-    ctx.fillStyle = '#DEAD2A'; ctx.font = '700 60px "Georgia", serif'
-    ctx.textAlign = 'center'; ctx.fillText('StepBook', W / 2, 310)
+    // Subtítulo "Li essa frase pelo StepBook que me fez refletir"
+    ctx.fillStyle = 'rgba(255,255,255,0.70)'
+    ctx.font      = '400 34px "Georgia", serif'
+    ctx.fillText('Li essa frase pelo StepBook', W / 2, 345)
+    ctx.fillText('que me fez refletir', W / 2, 388)
 
-    // Subtítulo
-    ctx.fillStyle = 'rgba(255,255,255,0.62)'; ctx.font = 'italic 400 34px "Georgia", serif'
-    ctx.fillText('"Li essa frase pelo StepBook que me fez refletir"', W / 2, 390)
+    // Linha dourada superior da frase
+    goldLine(ctx, W, 440)
 
-    // Linha topo
-    goldenLine(ctx, W, 440)
-
-    // Frase (grande, branca, centralizada)
-    const quote = quoteText || feedText
-    ctx.fillStyle = '#FFFFFF'; ctx.font = 'bold 52px "Georgia", serif'
+    // ── Frase principal (grande, centralizada, branca) ──
+    const quote = storyQuote.slice(0, 240)
+    ctx.fillStyle = '#FFFFFF'
+    ctx.font      = 'italic bold 58px "Georgia", serif'
     ctx.textAlign = 'center'
-    wrapTextCtr(ctx, `"${quote.slice(0, 220)}"`, W / 2, 590, W - 180, 70)
+    ctx.shadowColor = 'rgba(0,0,0,0.4)'
+    ctx.shadowBlur  = 8
+    wrapTextCtr(ctx, `\u201c${quote}\u201d`, W / 2, 580, W - 160, 76)
+    ctx.shadowBlur  = 0
 
-    // Linha rodapé
-    goldenLine(ctx, W, 1430)
+    // Linha dourada inferior
+    goldLine(ctx, W, 1440)
 
     // Livro
-    ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.font = '400 36px sans-serif'
-    ctx.textAlign = 'center'; ctx.fillText('Livro:', W / 2, 1510)
-    ctx.fillStyle = '#DEAD2A'; ctx.font = '600 38px "Georgia", serif'
-    wrapTextCtr(ctx, book.title || '', W / 2, 1565, W - 200, 48)
+    ctx.fillStyle = 'rgba(255,255,255,0.55)'
+    ctx.font      = '400 36px sans-serif'
+    ctx.textAlign = 'center'
+    ctx.fillText('Livro:', W / 2, 1520)
 
-    ctx.fillStyle = 'rgba(255,255,255,0.32)'; ctx.font = '400 30px sans-serif'
+    ctx.fillStyle = '#DEAD2A'
+    ctx.font      = '600 40px "Georgia", serif'
+    wrapTextCtr(ctx, book.title || '', W / 2, 1578, W - 200, 50)
+
+    // URL rodapé
+    ctx.fillStyle = 'rgba(255,255,255,0.35)'
+    ctx.font      = '400 30px sans-serif'
     ctx.fillText('stepbook.vercel.app', W / 2, H - 55)
   }
 
-  function goldenLine(ctx, W, y) {
-    const g = ctx.createLinearGradient(100, 0, W - 100, 0)
-    g.addColorStop(0, 'transparent'); g.addColorStop(0.3, '#DEAD2A')
-    g.addColorStop(0.7, '#DEAD2A'); g.addColorStop(1, 'transparent')
+  // ── HELPERS ─────────────────────────────────────────────
+  function goldLine(ctx, W, y) {
+    const g = ctx.createLinearGradient(80, 0, W - 80, 0)
+    g.addColorStop(0, 'transparent')
+    g.addColorStop(0.2, 'rgba(222,173,42,0.8)')
+    g.addColorStop(0.8, 'rgba(222,173,42,0.8)')
+    g.addColorStop(1, 'transparent')
     ctx.strokeStyle = g; ctx.lineWidth = 1.5
-    ctx.beginPath(); ctx.moveTo(100, y); ctx.lineTo(W - 100, y); ctx.stroke()
-  }
-
-  function drawLogoImg(ctx, x, y, size) {
-    return new Promise(res => {
-      const img = new Image()
-      img.onload = () => { ctx.drawImage(img, x, y, size, size); res() }
-      img.onerror = res; img.src = '/logo.png'
-    })
+    ctx.beginPath(); ctx.moveTo(80, y); ctx.lineTo(W - 80, y); ctx.stroke()
   }
 
   function rrect(ctx, x, y, w, h, r) {
@@ -234,6 +264,7 @@ export default function ShareModal({ book, progress, mode = 'feed', quoteText = 
     if (line) ctx.fillText(line.trim(), cx, cy)
   }
 
+  // ── AÇÕES ────────────────────────────────────────────────
   const getCanvas = () => tab === 'feed' ? canvasRef.current : storiesRef.current
 
   const download = () => {
@@ -247,7 +278,7 @@ export default function ShareModal({ book, progress, mode = 'feed', quoteText = 
     const txt = encodeURIComponent(
       tab === 'stories' && quoteText
         ? `"${quoteText}"\n\n— ${book.title}\n\nstepbook.vercel.app`
-        : `Estou lendo "${book.title}" — ${progress}% concluído! stepbook.vercel.app`
+        : `Estou lendo "${book.title}" — ${progress}% concluído!\n\nstepbook.vercel.app`
     )
     window.open(`https://wa.me/?text=${txt}`, '_blank')
   }
@@ -262,13 +293,14 @@ export default function ShareModal({ book, progress, mode = 'feed', quoteText = 
   return (
     <div className="overlay center" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="modal" style={styles.modal}>
+
         {/* Tabs */}
         <div style={styles.tabs}>
           <button style={{...styles.tab, ...(tab==='feed' ? styles.tabOn : {})}} onClick={() => setTab('feed')}>
             📊 Card Feed
           </button>
           <button style={{...styles.tab, ...(tab==='stories' ? styles.tabOn : {})}} onClick={() => setTab('stories')}>
-            ✂️ Card Stories
+            💬 Card Stories
           </button>
         </div>
 
@@ -292,7 +324,8 @@ export default function ShareModal({ book, progress, mode = 'feed', quoteText = 
             <div style={{ display:'flex', alignItems:'center', gap:4, marginBottom:12 }}>
               <span style={styles.lbl}>Avaliação:</span>
               {[1,2,3,4,5].map(s => (
-                <button key={s} style={{...styles.star, color: s<=stars?'#DEAD2A':'var(--text3)'}}
+                <button key={s}
+                  style={{...styles.star, color: s<=stars?'#DEAD2A':'var(--text3)'}}
                   onClick={() => setStars(s)}>★</button>
               ))}
             </div>
@@ -305,23 +338,33 @@ export default function ShareModal({ book, progress, mode = 'feed', quoteText = 
             <div style={{ display:'flex', justifyContent:'center', marginBottom:12 }}>
               <canvas ref={storiesRef} style={styles.storiesPrev} />
             </div>
-            {quoteText && (
+            {storyQuote && (
               <div style={{ marginBottom:10 }}>
-                <span style={styles.lbl}>Frase selecionada:</span>
-                <p style={styles.quoteP}>"{quoteText.slice(0,120)}{quoteText.length>120?'…':''}"</p>
+                <span style={styles.lbl}>Frase no card:</span>
+                <p style={styles.quoteP}>
+                  "{storyQuote.slice(0,100)}{storyQuote.length>100?'…':''}"
+                </p>
               </div>
+            )}
+            {!quoteText && (
+              <p style={{ fontSize:'0.78rem', color:'var(--text3)', marginBottom:10 }}>
+                💡 Selecione um trecho do texto e toque no botão 💬 para criar um card personalizado.
+              </p>
             )}
           </>
         )}
 
-        {/* Buttons */}
+        {/* Botões de compartilhamento */}
         <div style={styles.grid}>
           <button className="btn btn-gold btn-sm" onClick={shareWA}>💬 WhatsApp</button>
-          <button className="btn btn-ghost btn-sm" onClick={() => { download(); toast('Baixada! Abra o Instagram 📸') }}>📸 Instagram</button>
+          <button className="btn btn-ghost btn-sm" onClick={() => { download(); toast('Baixada! Salve nos Stories 📸') }}>📸 Instagram</button>
           <button className="btn btn-ghost btn-sm" onClick={copyText}>📋 Copiar texto</button>
           <button className="btn btn-ghost btn-sm" onClick={download}>⬇ Baixar imagem</button>
         </div>
-        <button className="btn btn-ghost" style={{ width:'100%', marginTop:8 }} onClick={onClose}>Fechar</button>
+
+        <button className="btn btn-ghost" style={{ width:'100%', marginTop:8 }} onClick={onClose}>
+          Fechar
+        </button>
       </div>
     </div>
   )
@@ -329,7 +372,10 @@ export default function ShareModal({ book, progress, mode = 'feed', quoteText = 
 
 const styles = {
   modal: { maxWidth:520, padding:'20px 20px 24px' },
-  tabs: { display:'flex', gap:8, marginBottom:16, borderBottom:'1px solid var(--border)', paddingBottom:12 },
+  tabs: {
+    display:'flex', gap:8, marginBottom:16,
+    borderBottom:'1px solid var(--border)', paddingBottom:12,
+  },
   tab: {
     flex:1, padding:'8px 12px', background:'none',
     border:'1px solid var(--border)', borderRadius:'var(--radius)',
@@ -337,10 +383,27 @@ const styles = {
     cursor:'pointer', fontFamily:"'DM Sans',sans-serif",
   },
   tabOn: { background:'var(--gold-dim2)', borderColor:'var(--gold)', color:'var(--gold)' },
-  preview: { width:'100%', borderRadius:8, border:'1px solid var(--border2)', marginBottom:12 },
-  storiesPrev: { height:320, borderRadius:8, border:'1px solid var(--border2)', aspectRatio:'9/16' },
-  lbl: { fontSize:'0.72rem', fontWeight:600, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'0.08em', display:'block' },
-  star: { background:'none', border:'none', fontSize:'1.3rem', cursor:'pointer', padding:'0 2px' },
-  quoteP: { color:'var(--gold)', fontStyle:'italic', fontFamily:"'Crimson Pro',serif", fontSize:'0.9rem', lineHeight:1.5, marginTop:4 },
+  preview: {
+    width:'100%', borderRadius:8,
+    border:'1px solid var(--border2)', marginBottom:12,
+  },
+  storiesPrev: {
+    height:340, borderRadius:8,
+    border:'1px solid var(--border2)',
+    aspectRatio:'9/16',
+  },
+  lbl: {
+    fontSize:'0.72rem', fontWeight:600, color:'var(--text3)',
+    textTransform:'uppercase', letterSpacing:'0.08em', display:'block',
+  },
+  star: {
+    background:'none', border:'none', fontSize:'1.3rem',
+    cursor:'pointer', padding:'0 2px',
+  },
+  quoteP: {
+    color:'var(--gold)', fontStyle:'italic',
+    fontFamily:"'Crimson Pro',serif", fontSize:'0.9rem',
+    lineHeight:1.5, marginTop:4,
+  },
   grid: { display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:8 },
 }
