@@ -29,20 +29,21 @@ export default function ShareModal({ book, progress, mode = 'feed', quoteText = 
   useEffect(() => { if (tab === 'feed')    renderFeed()    }, [tab, selRef, stars])
   useEffect(() => { if (tab === 'stories') renderStories() }, [tab, quoteText])
 
-  // ── LOGO — carrega como imagem (fundo transparente preservado) ──
+  // ── LOGO — carrega da URL externa (fundo transparente preservado no canvas) ──
+  const LOGO_URL = 'https://i.ibb.co/Xkfz5QKL/sua-logo-stepbook.png'
+
   const getLogoImg = () => new Promise(res => {
     const img = new Image()
-    // Usar URL absoluta para garantir que o canvas consiga carregar
     img.crossOrigin = 'anonymous'
-    img.onload = () => res(img)
+    img.onload  = () => res(img)
     img.onerror = () => {
-      // Fallback: tenta URL relativa
+      // Fallback: tenta via /logo.png local
       const img2 = new Image()
-      img2.onload = () => res(img2)
+      img2.onload  = () => res(img2)
       img2.onerror = () => res(null)
       img2.src = '/logo.png'
     }
-    img.src = window.location.origin + '/logo.png'
+    img.src = LOGO_URL
   })
 
   // ── CARD FEED 1080×1080 ──────────────────────────────────
@@ -162,41 +163,40 @@ export default function ShareModal({ book, progress, mode = 'feed', quoteText = 
     // ── Ondas douradas (lado direito, múltiplas linhas) ──
     drawWaves(ctx, W, H)
 
-    // ── Logo centralizada no topo (SEM fundo) ──
+    // ── Logo centralizada no topo — tamanho grande com glow dourado ──
     const logoImg = await getLogoImg()
-    const LS = 130
+    const LS = 200  // grande para destaque máximo
     const LX = W / 2 - LS / 2
     if (logoImg) {
       ctx.save()
-      ctx.shadowColor = 'rgba(222,173,42,0.5)'
-      ctx.shadowBlur  = 24
-      ctx.drawImage(logoImg, LX, 90, LS, LS)
+      ctx.shadowColor  = '#D4AF37'
+      ctx.shadowBlur   = 35
+      ctx.drawImage(logoImg, LX, 80, LS, LS)
       ctx.restore()
     } else {
-      // Fallback SVG inline
       ctx.fillStyle = '#DEAD2A'
-      ctx.font = '90px serif'
+      ctx.font = '120px serif'
       ctx.textAlign = 'center'
-      ctx.fillText('📖', W/2, 200)
+      ctx.fillText('📖', W/2, 230)
     }
 
     // StepBook
     ctx.fillStyle = '#DEAD2A'
     ctx.font      = 'bold 68px "Georgia", serif'
     ctx.textAlign = 'center'
-    ctx.shadowColor = 'rgba(222,173,42,0.25)'
-    ctx.shadowBlur  = 8
-    ctx.fillText('StepBook', W / 2, 275)
+    ctx.shadowColor = 'rgba(212,175,55,0.3)'
+    ctx.shadowBlur  = 10
+    ctx.fillText('StepBook', W / 2, 330)
     ctx.shadowBlur = 0
 
     // Subtítulo
     ctx.fillStyle = 'rgba(255,255,255,0.65)'
     ctx.font      = '400 36px "Georgia", serif'
-    ctx.fillText('Li essa frase pelo StepBook', W / 2, 350)
-    ctx.fillText('que me fez refletir', W / 2, 396)
+    ctx.fillText('Li essa frase pelo StepBook', W / 2, 410)
+    ctx.fillText('que me fez refletir', W / 2, 456)
 
     // Linha dourada
-    goldLine(ctx, W, 446)
+    goldLine(ctx, W, 510)
 
     // Frase principal
     const quote = storyQuote.slice(0, 280)
@@ -205,7 +205,7 @@ export default function ShareModal({ book, progress, mode = 'feed', quoteText = 
     ctx.textAlign   = 'center'
     ctx.shadowColor = 'rgba(0,0,0,0.3)'
     ctx.shadowBlur  = 6
-    wrapTextCtr(ctx, `\u201c${quote}\u201d`, W / 2, 600, W - 140, 80, 8)
+    wrapTextCtr(ctx, `\u201c${quote}\u201d`, W / 2, 660, W - 140, 80, 8)
     ctx.shadowBlur = 0
 
     // Linha inferior
