@@ -27,48 +27,48 @@ async function generatePremiumCard(canvas, quoteText, bookTitle) {
   canvas.width  = W
   canvas.height = H
 
-  // ── Determina qual imagem base usar (alternância) ─────────────────────────
+  // ── Determina qual imagem base usar ANTES de incrementar ─────────────────
+  // Par (0,2,4...) → azul | Ímpar (1,3,5...) → preto
   const isFirst = cardGenerationCount % 2 === 0
   const baseUrl = isFirst ? CARD_AZUL : CARD_PRETO
 
   // ── Carrega a imagem base com crossOrigin para evitar taint no canvas ─────
   const baseImg = await new Promise(resolve => {
     const img = new Image()
-    img.crossOrigin = 'anonymous'          // obrigatório para canvas não ficar tainted
-    img.onload  = () => resolve(img)       // aguarda load completo
-    img.onerror = () => resolve(null)      // resolve null se falhar (não crasha)
-    img.src = baseUrl
+    img.crossOrigin = 'anonymous'
+    img.onload  = () => resolve(img)
+    img.onerror = () => resolve(null)
+    // Cache buster para forçar novo load na alternância
+    img.src = baseUrl + '?v=' + cardGenerationCount
   })
 
   // ── Passo 1: Desenha a imagem base cobrindo 100% do canvas ───────────────
   if (baseImg) {
-    ctx.drawImage(baseImg, 0, 0, W, H)    // preenche todo o canvas preservando a imagem
+    ctx.drawImage(baseImg, 0, 0, W, H)
   } else {
-    // Fallback mínimo caso a imagem não carregue
     ctx.fillStyle = isFirst ? '#0a1428' : '#0a0a0a'
     ctx.fillRect(0, 0, W, H)
   }
 
-  // ── Passo 2: Sobrepõe SOMENTE os textos dinâmicos nas áreas VAZIAS ──────────
-  // A imagem base JÁ CONTÉM: logo, "StepBook", "Li essa frase...", ondas, fundo
-  // NÃO repetir esses elementos — apenas citação dinâmica + título do livro
+  // ── Passo 2: Sobrepõe SOMENTE os textos dinâmicos nas áreas VAZIAS ────────
+  // A imagem base JÁ CONTÉM: logo, "StepBook", "Li essa frase...", ondas
+  // Y ajustados para a área VAZIA central (abaixo do subtítulo da base)
 
   ctx.textAlign = 'center'
 
-  // 2a. Citação central — área VAZIA da imagem (entre o subtítulo e o rodapé)
-  // Y 580 = abaixo do subtítulo fixo da base | limite 1380 = acima do rodapé
+  // 2a. Citação — começa em Y=700 para não sobrepor o subtítulo da base
+  // A imagem base tem "Li essa frase..." até ~Y=630 no canvas 1080×1920
   ctx.fillStyle = '#F4EFEA'
-  ctx.font      = 'italic bold 72px "Playfair Display", "Georgia", serif'
+  ctx.font      = 'italic bold 68px "Playfair Display", "Georgia", serif'
   const quoteFull = `\u201c${quoteText.slice(0, 260)}\u201d`
-  wrapCentered(ctx, quoteFull, W / 2, 580, W - 120, 90, 9)
+  wrapCentered(ctx, quoteFull, W / 2, 720, W - 140, 88, 9)
 
-  // 2b. Título do livro — abaixo da citação, acima do rodapé da base
+  // 2b. Título do livro — Y 1480, com wrap máximo 2 linhas
   ctx.fillStyle = '#D4AF37'
-  ctx.font      = '600 40px "DM Sans", sans-serif'
-  // Wrap para não sair da margem
-  wrapCentered(ctx, `Livro: ${bookTitle}`, W / 2, 1490, W - 140, 50, 2)
+  ctx.font      = '600 38px "DM Sans", sans-serif'
+  wrapCentered(ctx, `Livro: ${bookTitle}`, W / 2, 1480, W - 160, 48, 2)
 
-  return canvas.toDataURL('image/png')
+  return canvas.toDataURL('image/png', 1.0)  // qualidade máxima
 }
 
 // ─── Wrap de texto centralizado ──────────────────────────────────────────────
@@ -125,9 +125,9 @@ export default function ShareModal({ book, progress, mode = 'feed', quoteText = 
   const runPremium = async () => {
     const canvas = storiesRef.current
     if (!canvas) return
-    // Incrementa contador ANTES de gerar (controla alternância)
-    cardGenerationCount++
+    // Gera com o contador atual, incrementa DEPOIS para próxima chamada
     await generatePremiumCard(canvas, storyQuote, bookTitle)
+    cardGenerationCount++   // incrementa APÓS geração — próximo click usa base diferente
     setPremiumReady(true)
   }
 
@@ -382,7 +382,16 @@ const s = {
   tab:      { flex:1, padding:'8px 12px', background:'none', border:'1px solid var(--border)', borderRadius:'var(--radius)', color:'var(--text2)', fontSize:'0.80rem', fontWeight:600, cursor:'pointer' },
   on:       { background:'var(--gold-dim2)', borderColor:'var(--gold)', color:'var(--gold)' },
   preview:  { width:'100%', borderRadius:8, border:'1px solid var(--border2)', marginBottom:12 },
-  stPrev:   { height:340, borderRadius:8, border:'1px solid var(--border2)', aspectRatio:'9/16' },
+  stPrev: {
+    // Exibe em altura fixa mas mantém proporção 9:16
+    // image-rendering crisp para não borrar o canvas 1080×1920
+    height: 360,
+    borderRadius: 8,
+    border: '1px solid var(--border2)',
+    aspectRatio: '9/16',
+    imageRendering: 'auto',
+    display: 'block',
+  },
   loader:   { position:'absolute', inset:0, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', background:'rgba(3,8,16,0.7)', borderRadius:8 },
   lbl:      { fontSize:'0.72rem', fontWeight:600, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'0.08em', display:'block' },
   star:     { background:'none', border:'none', fontSize:'1.3rem', cursor:'pointer', padding:'0 2px' },
