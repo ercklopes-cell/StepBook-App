@@ -27,76 +27,98 @@ async function generatePremiumCard(canvas, quoteText, bookTitle) {
   canvas.width  = W
   canvas.height = H
 
-  // ── Determina qual imagem base usar ─────────────────────────────────────
-  const isFirst = cardGenerationCount % 2 === 0
-  const baseUrl = isFirst ? CARD_AZUL : CARD_PRETO
-
-  // ── Carrega a imagem base (SEM cache buster — ImgBB não suporta query params) ─
+  // ── Usa SEMPRE a imagem azul (único card) ────────────────────────────────
   const baseImg = await new Promise(resolve => {
     const img = new Image()
     img.crossOrigin = 'anonymous'
     img.onload  = () => resolve(img)
-    img.onerror = () => {
-      // Tenta sem crossOrigin como fallback
-      const img2 = new Image()
-      img2.onload  = () => resolve(img2)
-      img2.onerror = () => resolve(null)
-      img2.src = baseUrl
-    }
-    img.src = baseUrl
+    img.onerror = () => resolve(null)
+    img.src = CARD_AZUL
   })
 
-  // ── Passo 1: Desenha imagem base cobrindo 100% do canvas ──────────────
+  // ── Passo 1: Imagem base cobre 100% do canvas ────────────────────────────
   if (baseImg) {
     ctx.drawImage(baseImg, 0, 0, W, H)
   } else {
-    ctx.fillStyle = isFirst ? '#0a1428' : '#0a0a0a'
+    ctx.fillStyle = '#0a1428'
     ctx.fillRect(0, 0, W, H)
   }
 
-  // ── Passo 2: Somente textos dinâmicos nas áreas VAZIAS da base ────────
-  // Base JÁ TEM: logo, "StepBook", "Li essa frase...", ondas, fundo
-  // Área vazia começa em ~Y=800 (após o subtítulo da imagem base)
+  // ── Passo 2: Textos dinâmicos na área VAZIA da imagem ─────────────────────
+  // Área vazia da base: de ~Y=790 até ~Y=1380 (entre subtítulo e rodapé)
+  // Centralizar verticalmente nessa zona
+  const ZONE_TOP    = 790
+  const ZONE_BOTTOM = 1360
+  const ZONE_HEIGHT = ZONE_BOTTOM - ZONE_TOP  // 570px disponíveis
 
   ctx.textAlign = 'center'
 
-  // 2a. Citação — limitada a 100 chars, centralizada, italic bold
-  // Y=860 — bem abaixo do subtítulo fixo da base (~Y=750)
-  const quoteShort = quoteText.length > 100
-    ? quoteText.slice(0, 97) + '...'
-    : quoteText
-  ctx.fillStyle = '#F4EFEA'
-  ctx.font      = 'italic bold 64px "Playfair Display", "Georgia", serif'
-  wrapCentered(ctx, `\u201c${quoteShort}\u201d`, W / 2, 860, W - 150, 84)
+  // ── Mede altura total da citação para centralizar ─────────────────────────
+  const quoteShort  = quoteText.length > 100 ? quoteText.slice(0, 97) + '...' : quoteText
+  const quoteFull   = `\u201c${quoteShort}\u201d`
+  const QUOTE_FONT  = 'italic bold 62px "Playfair Display", "Georgia", serif'
+  const TITLE_FONT  = '400 36px "Playfair Display", "Georgia", serif'
+  const TITLE_BOLD  = '600 38px "Playfair Display", "Georgia", serif'
+  const QUOTE_LH    = 80
+  const TITLE_LH    = 50
 
-  // 2b. Título do livro — elegante, centralizado, quebra de linha natural
-  // Font menor para caber sem truncamento
+  ctx.font = QUOTE_FONT
+  const quoteLines  = measureLines(ctx, quoteFull,   W - 150, QUOTE_LH)
+  ctx.font = TITLE_BOLD
+  const titleLines  = measureLines(ctx, bookTitle,   W - 160, TITLE_LH)
+
+  // Altura total: citação + espaço + "Livro:" + título
+  const totalH = quoteLines.length * QUOTE_LH
+    + 60               // espaço entre citação e "Livro:"
+    + TITLE_LH         // linha "Livro:"
+    + titleLines.length * TITLE_LH
+
+  // Ponto Y inicial para centrar verticalmente na zona vazia
+  const startY = ZONE_TOP + Math.round((ZONE_HEIGHT - totalH) / 2) + QUOTE_LH
+
+  // ── Citação ──────────────────────────────────────────────────────────────
+  ctx.fillStyle = '#F4EFEA'
+  ctx.font      = QUOTE_FONT
+  let cy = startY
+  for (const line of quoteLines) {
+    ctx.fillText(line, W / 2, cy)
+    cy += QUOTE_LH
+  }
+
+  // ── "Livro:" ─────────────────────────────────────────────────────────────
+  cy += 50
+  ctx.fillStyle = 'rgba(212,175,55,0.75)'
+  ctx.font      = TITLE_FONT
+  ctx.fillText('Livro:', W / 2, cy)
+
+  // ── Título com quebra de linha elegante ──────────────────────────────────
+  cy += TITLE_LH
   ctx.fillStyle = '#D4AF37'
-  ctx.font      = '400 36px "Playfair Display", "Georgia", serif'
-  // "Livro:" em linha separada para elegância
-  ctx.fillText('Livro:', W / 2, 1470)
-  ctx.font = '600 38px "Playfair Display", "Georgia", serif'
-  // Título com wrap sem limite de linhas — cabe tudo
-  wrapCentered(ctx, bookTitle, W / 2, 1530, W - 160, 50)
+  ctx.font      = TITLE_BOLD
+  for (const line of titleLines) {
+    ctx.fillText(line, W / 2, cy)
+    cy += TITLE_LH
+  }
 
   return canvas.toDataURL('image/png', 1.0)
 }
 
-// ─── Wrap centralizado SEM truncamento forçado ───────────────────────────────
-function wrapCentered(ctx, text, cx, startY, maxW, lineH) {
+// ─── Divide texto em linhas respeitando maxW ──────────────────────────────────
+function measureLines(ctx, text, maxW) {
   const words = text.split(' ')
-  let line = '', cy = startY
+  const lines = []
+  let line    = ''
   for (const word of words) {
     const test = line + word + ' '
     if (ctx.measureText(test).width > maxW && line) {
-      ctx.fillText(line.trim(), cx, cy)
+      lines.push(line.trim())
       line = word + ' '
-      cy += lineH
     } else {
       line = test
     }
   }
-  if (line) ctx.fillText(line.trim(), cx, cy)
+  if (line.trim()) lines.push(line.trim())
+  return lines
 }
 
 // ─── Limpa título (remove hifens/underscores de nomes de arquivo) ─────────────
@@ -341,13 +363,6 @@ export default function ShareModal({ book, progress, mode = 'feed', quoteText = 
                 </div>
               )}
             </div>
-
-            {/* Botão gerar outro (incrementa contador → alterna base) */}
-            <button className="btn btn-ghost btn-sm"
-              style={{width:'100%',marginBottom:10}}
-              onClick={() => { setPremiumReady(false); runPremium() }}>
-              🔄 Gerar outro estilo
-            </button>
 
             {storyQuote && (
               <div style={{marginBottom:8}}>
