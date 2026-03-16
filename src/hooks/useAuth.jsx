@@ -8,13 +8,31 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setUser(data.session?.user ?? null)
+    // Tenta recuperar sessão atual
+    supabase.auth.getSession().then(({ data, error }) => {
+      if (error || !data.session) {
+        // Sessão inválida ou expirada — limpa tudo e mostra login
+        supabase.auth.signOut().catch(() => {})
+        setUser(null)
+      } else {
+        setUser(data.session.user)
+      }
       setLoading(false)
     })
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
-      setUser(session?.user ?? null)
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'TOKEN_REFRESHED') {
+        setUser(session?.user ?? null)
+      } else if (event === 'SIGNED_OUT' || event === 'USER_DELETED') {
+        setUser(null)
+      } else if (event === 'SIGNED_IN') {
+        setUser(session?.user ?? null)
+      } else if (!session) {
+        // Token inválido — força logout limpo
+        setUser(null)
+      }
     })
+
     return () => subscription.unsubscribe()
   }, [])
 
