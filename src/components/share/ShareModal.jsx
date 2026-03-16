@@ -1,11 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { useToast } from '../../hooks/useToast'
 
-// ─── Imagens base hospedadas — URLs DIRETAS do ImgBB ────────────────────────
-// Essas imagens já contêm: logo, "StepBook", "Li essa frase...", ondas, fundo
-// O código sobrepõe SOMENTE os textos dinâmicos nas áreas VAZIAS
-const CARD_AZUL  = 'https://i.ibb.co/Q7km8JGM/dreamina-2026-03-15-6884-Remove-the-central-quote-text-Se-desej.jpg'
-const CARD_PRETO = 'https://i.ibb.co/CKdNHKQc/dreamina-2026-03-15-6664-Remove-the-central-quote-text-Se-desej.jpg'
+// ─── Imagem base única ───────────────────────────────────────────────────────
+const CARD_AZUL = 'https://i.ibb.co/tpfkJpDG/dreamina-2026-03-15-6664-Remove-the-central-quote-text-Se-desej.jpg'
 
 // ─── Contador global de geração — controla alternância azul/preto ────────────
 // Par (0,2,4...) → azul | Ímpar (1,3,5...) → preto
@@ -57,23 +54,24 @@ async function generatePremiumCard(canvas, quoteText, bookTitle) {
   const quoteShort  = quoteText.length > 100 ? quoteText.slice(0, 97) + '...' : quoteText
   const quoteFull   = `\u201c${quoteShort}\u201d`
   const QUOTE_FONT  = 'italic bold 62px "Playfair Display", "Georgia", serif'
-  const TITLE_FONT  = '400 36px "Playfair Display", "Georgia", serif'
-  const TITLE_BOLD  = '600 38px "Playfair Display", "Georgia", serif'
+  const LABEL_FONT  = 'italic 400 32px "Playfair Display", "Georgia", serif'
+  const TITLE_FONT  = '600 34px "Playfair Display", "Georgia", serif'
   const QUOTE_LH    = 80
-  const TITLE_LH    = 50
+  const TITLE_LH    = 46
 
   ctx.font = QUOTE_FONT
-  const quoteLines  = measureLines(ctx, quoteFull,   W - 150, QUOTE_LH)
-  ctx.font = TITLE_BOLD
-  const titleLines  = measureLines(ctx, bookTitle,   W - 160, TITLE_LH)
+  const quoteLines  = measureLines(ctx, quoteFull,   W - 150)
+  ctx.font = TITLE_FONT
+  const titleLines  = measureLines(ctx, bookTitle,   W - 180)
 
-  // Altura total: citação + espaço + "Livro:" + título
+  // Altura total do bloco: citação + gap + "Livro:" + título
   const totalH = quoteLines.length * QUOTE_LH
-    + 60               // espaço entre citação e "Livro:"
-    + TITLE_LH         // linha "Livro:"
+    + 72               // espaço generoso entre citação e "Livro:"
+    + 38               // altura da linha "Livro:"
+    + 18               // espaço entre "Livro:" e título
     + titleLines.length * TITLE_LH
 
-  // Ponto Y inicial para centrar verticalmente na zona vazia
+  // Centro vertical na zona vazia
   const startY = ZONE_TOP + Math.round((ZONE_HEIGHT - totalH) / 2) + QUOTE_LH
 
   // ── Citação ──────────────────────────────────────────────────────────────
@@ -85,16 +83,16 @@ async function generatePremiumCard(canvas, quoteText, bookTitle) {
     cy += QUOTE_LH
   }
 
-  // ── "Livro:" ─────────────────────────────────────────────────────────────
-  cy += 50
-  ctx.fillStyle = 'rgba(212,175,55,0.75)'
-  ctx.font      = TITLE_FONT
-  ctx.fillText('Livro:', W / 2, cy)
+  // ── Label "Livro:" — suave, italic ───────────────────────────────────────
+  cy += 68
+  ctx.fillStyle = 'rgba(212,175,55,0.70)'
+  ctx.font      = LABEL_FONT
+  ctx.fillText('— Livro —', W / 2, cy)
 
-  // ── Título com quebra de linha elegante ──────────────────────────────────
-  cy += TITLE_LH
+  // ── Título completo com quebra de linha elegante ──────────────────────────
+  cy += 44
   ctx.fillStyle = '#D4AF37'
-  ctx.font      = TITLE_BOLD
+  ctx.font      = TITLE_FONT
   for (const line of titleLines) {
     ctx.fillText(line, W / 2, cy)
     cy += TITLE_LH
@@ -103,7 +101,7 @@ async function generatePremiumCard(canvas, quoteText, bookTitle) {
   return canvas.toDataURL('image/png', 1.0)
 }
 
-// ─── Divide texto em linhas respeitando maxW ──────────────────────────────────
+// ─── Divide texto em linhas respeitando maxW ─────────────────────────────────
 function measureLines(ctx, text, maxW) {
   const words = text.split(' ')
   const lines = []
@@ -121,9 +119,15 @@ function measureLines(ctx, text, maxW) {
   return lines
 }
 
-// ─── Limpa título (remove hifens/underscores de nomes de arquivo) ─────────────
+// ─── Limpa título — remove hifens/underscores de nomes de arquivo ────────────
 function cleanTitle(t = '') {
-  return t.replace(/[-_]/g, ' ').replace(/\.(pdf|txt)$/i, '').trim().slice(0, 55)
+  return t
+    .replace(/[-_]/g, ' ')           // hifens e underscores viram espaço
+    .replace(/\.(pdf|txt)$/i, '')    // remove extensão
+    .replace(/\s+/g, ' ')           // espaços duplos
+    .trim()
+    // Remove nome de autor colado (ex: "Titulo Dale Carnegie" → mantém tudo)
+    // NÃO truncar — deixa o título completo para o wrapCentered quebrar
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
