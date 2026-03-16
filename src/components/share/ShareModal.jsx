@@ -1,52 +1,209 @@
 import { useEffect, useRef, useState } from 'react'
 import { useToast } from '../../hooks/useToast'
 
+// ─── URLs dos cards base hospedados no ImgBB ────────────────────────────────
+const CARD_AZUL   = 'https://i.ibb.co/Q7km8JGM/card-azul-escuro-premium.png'
+const CARD_PRETO  = 'https://i.ibb.co/s9SkV9qf/card-preto-gradiente-premium.png'
+const LOGO_URL    = 'https://i.ibb.co/Xkfz5QKL/sua-logo-stepbook.png'
+
+// ─── Contador global de cards gerados (alternância azul/preto) ──────────────
+let cardCount = 0
+
+// ─── Função utilitária: carrega imagem via URL com crossOrigin anonymous ─────
+// Isso preserva a transparência PNG no canvas e evita CORS taint
+function loadImage(src) {
+  return new Promise(resolve => {
+    const img = new Image()
+    img.crossOrigin = 'anonymous'
+    img.onload  = () => resolve(img)
+    img.onerror = () => resolve(null)
+    img.src = src
+  })
+}
+
+// ─── Wrap de texto alinhado à esquerda ───────────────────────────────────────
+function wrapText(ctx, text, x, y, maxW, lineH, maxLines = 99) {
+  const words = text.split(' ')
+  let line = '', cy = y, n = 0
+  for (const word of words) {
+    const test = line + word + ' '
+    if (ctx.measureText(test).width > maxW && line) {
+      ctx.fillText(line.trim(), x, cy)
+      line = word + ' '; cy += lineH; n++
+      if (n >= maxLines) { ctx.fillText('…', x, cy); return cy }
+    } else line = test
+  }
+  if (line) ctx.fillText(line.trim(), x, cy)
+  return cy
+}
+
+// ─── Wrap de texto centralizado ──────────────────────────────────────────────
+function wrapTextCtr(ctx, text, cx, y, maxW, lineH, maxLines = 99) {
+  const words = text.split(' ')
+  let line = '', cy = y, n = 0
+  for (const word of words) {
+    const test = line + word + ' '
+    if (ctx.measureText(test).width > maxW && line) {
+      ctx.fillText(line.trim(), cx, cy)
+      line = word + ' '; cy += lineH; n++
+      if (n >= maxLines) { ctx.fillText('…', cx, cy); return cy }
+    } else line = test
+  }
+  if (line) ctx.fillText(line.trim(), cx, cy)
+  return cy
+}
+
+// ─── Linha horizontal dourada com fade nas bordas ───────────────────────────
+function goldLine(ctx, W, y) {
+  const g = ctx.createLinearGradient(60, 0, W - 60, 0)
+  g.addColorStop(0,    'transparent')
+  g.addColorStop(0.12, 'rgba(212,175,55,0.85)')
+  g.addColorStop(0.88, 'rgba(212,175,55,0.85)')
+  g.addColorStop(1,    'transparent')
+  ctx.strokeStyle = g
+  ctx.lineWidth   = 1.5
+  ctx.beginPath()
+  ctx.moveTo(60, y); ctx.lineTo(W - 60, y)
+  ctx.stroke()
+}
+
+// ─── Retângulo arredondado ────────────────────────────────────────────────────
+function rrect(ctx, x, y, w, h, r) {
+  ctx.beginPath()
+  ctx.moveTo(x + r, y); ctx.lineTo(x + w - r, y); ctx.arcTo(x + w, y, x + w, y + r, r)
+  ctx.lineTo(x + w, y + h - r); ctx.arcTo(x + w, y + h, x + w - r, y + h, r)
+  ctx.lineTo(x + r, y + h); ctx.arcTo(x, y + h, x, y + h - r, r)
+  ctx.lineTo(x, y + r); ctx.arcTo(x, y, x + r, y, r)
+  ctx.closePath()
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// FUNÇÃO PRINCIPAL: generatePremiumCard
+// Parâmetros:
+//   canvas    — elemento <canvas> 1080×1920
+//   quoteText — frase selecionada pelo leitor
+//   bookTitle — título do livro (limpo)
+//   isFirst   — true → base azul escuro | false → base preto gradiente
+// Retorna: data URL PNG do card gerado
+// ═══════════════════════════════════════════════════════════════════════════════
+async function generatePremiumCard(canvas, quoteText, bookTitle, isFirst = true) {
+  const ctx = canvas.getContext('2d')
+  const W = 1080, H = 1920
+  canvas.width  = W
+  canvas.height = H
+
+  // ── PASSO 1: Carrega e desenha a imagem base (preenche 100% do canvas) ─────
+  // isFirst=true → azul escuro premium | isFirst=false → preto gradiente premium
+  const baseUrl = isFirst ? CARD_AZUL : CARD_PRETO
+  const baseImg = await loadImage(baseUrl)
+
+  if (baseImg) {
+    // ctx.drawImage preserva qualidade e transparência da imagem base
+    ctx.drawImage(baseImg, 0, 0, W, H)
+  } else {
+    // Fallback: fundo sólido caso a imagem não carregue
+    const fbBg = ctx.createLinearGradient(0, 0, 0, H)
+    fbBg.addColorStop(0, isFirst ? '#0a1428' : '#0a0a0a')
+    fbBg.addColorStop(1, isFirst ? '#1a253f' : '#1a1a2e')
+    ctx.fillStyle = fbBg
+    ctx.fillRect(0, 0, W, H)
+  }
+
+  // ── PASSO 2: Sobreposição de textos dinâmicos ─────────────────────────────
+  // (A logo e "StepBook" já estão na imagem base — não redesenhamos)
+
+  // ── 2a. Frase introdutória (logo abaixo da logo na base) ─────────────────
+  // Fonte: 50px DM Sans, dourado #D4AF37, centralizado
+  ctx.save()
+  ctx.textAlign   = 'center'
+  ctx.fillStyle   = '#D4AF37'
+  ctx.font        = '400 50px "DM Sans", sans-serif'
+  ctx.shadowColor = 'rgba(0,0,0,0.5)'
+  ctx.shadowBlur  = 8
+  // Posição Y calculada para ficar logo abaixo da área da logo (já na base)
+  ctx.fillText('Li essa frase pelo StepBook', W / 2, 430)
+  ctx.fillText('que me fez refletir',         W / 2, 492)
+  ctx.restore()
+
+  // ── 2b. Linha separadora dourada superior ────────────────────────────────
+  goldLine(ctx, W, 540)
+
+  // ── 2c. Citação central — grande, italic, off-white com sombra dourada ───
+  // Fonte: Playfair Display italic bold 70px
+  ctx.save()
+  ctx.textAlign   = 'center'
+  ctx.fillStyle   = '#F4EFEA'               // off-white quente
+  ctx.font        = 'italic bold 68px "Playfair Display", "Georgia", serif'
+  ctx.shadowColor = 'rgba(212,175,55,0.35)' // sombra dourada sutil
+  ctx.shadowBlur  = 10
+  // Aspas tipográficas " " (curvas)
+  const quoteFull = `\u201c${quoteText.slice(0, 260)}\u201d`
+  wrapTextCtr(ctx, quoteFull, W / 2, 650, W - 120, 88, 10)
+  ctx.restore()
+
+  // ── 2d. Linha separadora dourada inferior ────────────────────────────────
+  goldLine(ctx, W, 1465)
+
+  // ── 2e. Crédito do livro ─────────────────────────────────────────────────
+  ctx.save()
+  ctx.textAlign = 'center'
+  ctx.fillStyle = 'rgba(255,255,255,0.55)'
+  ctx.font      = '400 40px "DM Sans", sans-serif'
+  ctx.fillText('Livro:', W / 2, 1542)
+
+  ctx.fillStyle = '#D4AF37'
+  ctx.font      = '600 44px "Playfair Display", "Georgia", serif'
+  wrapTextCtr(ctx, bookTitle, W / 2, 1605, W - 140, 54, 2)
+  ctx.restore()
+
+  // ── 2f. URL no rodapé ────────────────────────────────────────────────────
+  ctx.save()
+  ctx.textAlign   = 'center'
+  ctx.fillStyle   = 'rgba(212,175,55,0.75)'
+  ctx.font        = '400 32px "DM Sans", sans-serif'
+  ctx.fillText('stepbook.vercel.app', W / 2, H - 48)
+  ctx.restore()
+
+  // Retorna data URL PNG pronto para download/share
+  return canvas.toDataURL('image/png')
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// COMPONENTE REACT
+// ═══════════════════════════════════════════════════════════════════════════════
 export default function ShareModal({ book, progress, mode = 'feed', quoteText = '', onClose }) {
-  const canvasRef  = useRef()
-  const storiesRef = useRef()
+  const canvasRef  = useRef()  // canvas para card Feed 1080×1080
+  const storiesRef = useRef()  // canvas para card Stories/Premium 1080×1920
   const toast      = useToast()
 
-  const [tab,    setTab]    = useState(mode)
-  const [selRef, setSelRef] = useState(0)
-  const [stars,  setStars]  = useState(5)
+  const [tab,          setTab]          = useState(mode)
+  const [selRef,       setSelRef]       = useState(0)
+  const [stars,        setStars]        = useState(5)
+  const [premiumReady, setPremiumReady] = useState(false)
+  const [shareLink,    setShareLink]    = useState('')  // "Baixe o StepBook.vercel.app"
 
   const reflections = book.reflections?.filter(r => r.answered) || []
   const feedText    = reflections[selRef]?.answer
     || `${progress}% do livro lido com leitura ativa pelo StepBook.`
-  const storyQuote  = quoteText || feedText
 
-  // Limpar título — remover nome de arquivo se necessário
-  const cleanTitle = (t = '') => t
-    .replace(/[-_]/g, ' ')
-    .replace(/\.(pdf|txt)$/i, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, 60)
+  // Limpa título — remove hifens/underscores de nomes de arquivo
+  const cleanTitle = (t = '') =>
+    t.replace(/[-_]/g, ' ').replace(/\.(pdf|txt)$/i, '').trim().slice(0, 55)
 
   const bookTitle  = cleanTitle(book.title)
-  const bookAuthor = book.author || ''
+  const bookAuthor = (book.author || '').slice(0, 45)
+  const storyQuote = quoteText || feedText
 
+  // Renderiza quando muda tab/seleção
   useEffect(() => { if (tab === 'feed')    renderFeed()    }, [tab, selRef, stars])
-  useEffect(() => { if (tab === 'stories') renderStories() }, [tab, quoteText])
-
-  // ── LOGO — carrega da URL externa (fundo transparente preservado no canvas) ──
-  const LOGO_URL = 'https://i.ibb.co/Xkfz5QKL/sua-logo-stepbook.png'
-
-  const getLogoImg = () => new Promise(res => {
-    const img = new Image()
-    img.crossOrigin = 'anonymous'
-    img.onload  = () => res(img)
-    img.onerror = () => {
-      // Fallback: tenta via /logo.png local
-      const img2 = new Image()
-      img2.onload  = () => res(img2)
-      img2.onerror = () => res(null)
-      img2.src = '/logo.png'
+  useEffect(() => {
+    if (tab === 'stories') {
+      setPremiumReady(false)
+      renderStories()
     }
-    img.src = LOGO_URL
-  })
+  }, [tab, quoteText])
 
-  // ── CARD FEED 1080×1080 ──────────────────────────────────
+  // ── CARD FEED 1080×1080 ──────────────────────────────────────────────────
   const renderFeed = async () => {
     const canvas = canvasRef.current
     if (!canvas) return
@@ -54,31 +211,32 @@ export default function ShareModal({ book, progress, mode = 'feed', quoteText = 
     const W = 1080, H = 1080
     canvas.width = W; canvas.height = H
 
-    // BG gradient
+    // Fundo escuro
     const bg = ctx.createLinearGradient(0, 0, 0, H)
     bg.addColorStop(0, '#080c14'); bg.addColorStop(1, '#101820')
     ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H)
 
-    // Gold top bar
+    // Barra dourada topo
     const barG = ctx.createLinearGradient(0, 0, W, 0)
-    barG.addColorStop(0, 'transparent'); barG.addColorStop(0.15, '#DEAD2A')
-    barG.addColorStop(0.85, '#DEAD2A'); barG.addColorStop(1, 'transparent')
+    barG.addColorStop(0, 'transparent'); barG.addColorStop(0.15, '#D4AF37')
+    barG.addColorStop(0.85, '#D4AF37'); barG.addColorStop(1, 'transparent')
     ctx.fillStyle = barG; ctx.fillRect(0, 0, W, 5)
 
-    // Logo top-right (sem fundo escuro)
-    const logoImg = await getLogoImg()
-    if (logoImg) {
-      ctx.drawImage(logoImg, W - 128, 18, 52, 52)
+    // Logo canto superior direito
+    const logo = await loadImage(LOGO_URL)
+    if (logo) {
+      ctx.save()
+      ctx.shadowColor = '#D4AF37'; ctx.shadowBlur = 15
+      ctx.drawImage(logo, W - 125, 18, 50, 50)
+      ctx.restore()
     }
-    ctx.fillStyle = '#DEAD2A'
-    ctx.font = '600 20px sans-serif'
-    ctx.textAlign = 'right'
-    ctx.fillText('StepBook', W - 138, 52)
+    ctx.fillStyle = '#D4AF37'; ctx.font = 'bold 20px sans-serif'
+    ctx.textAlign = 'right'; ctx.fillText('StepBook', W - 135, 52)
     ctx.textAlign = 'left'
 
-    // Cover
+    // Capa do livro
     const coverSrc = book.cover_url || (book.cover_b64 ? `data:image/jpeg;base64,${book.cover_b64}` : null)
-    const CX = 80, CY = 180, CW = 290, CH = 435
+    const CX = 80, CY = 180, CW = 285, CH = 430
     if (coverSrc) {
       await new Promise(res => {
         const img = new Image(); img.crossOrigin = 'anonymous'
@@ -86,225 +244,80 @@ export default function ShareModal({ book, progress, mode = 'feed', quoteText = 
           ctx.save()
           ctx.shadowColor = 'rgba(0,0,0,0.9)'; ctx.shadowBlur = 40; ctx.shadowOffsetX = 10
           ctx.drawImage(img, CX, CY, CW, CH); ctx.restore()
-          ctx.strokeStyle = '#DEAD2A'; ctx.lineWidth = 2; ctx.strokeRect(CX, CY, CW, CH); res()
+          ctx.strokeStyle = '#D4AF37'; ctx.lineWidth = 2
+          ctx.strokeRect(CX, CY, CW, CH); res()
         }
         img.onerror = res; img.src = coverSrc
       })
     } else {
       ctx.fillStyle = '#0d1a2e'; ctx.fillRect(CX, CY, CW, CH)
-      ctx.strokeStyle = '#DEAD2A'; ctx.lineWidth = 2; ctx.strokeRect(CX, CY, CW, CH)
-      ctx.fillStyle = '#DEAD2A'; ctx.font = '72px serif'; ctx.textAlign = 'center'
-      ctx.fillText(book.emoji || '📖', CX + CW/2, CY + CH/2 + 25); ctx.textAlign = 'left'
+      ctx.strokeStyle = '#D4AF37'; ctx.lineWidth = 2; ctx.strokeRect(CX, CY, CW, CH)
+      ctx.fillStyle = '#D4AF37'; ctx.font = '70px serif'; ctx.textAlign = 'center'
+      ctx.fillText(book.emoji || '📖', CX + CW/2, CY + CH/2 + 24); ctx.textAlign = 'left'
     }
 
-    // Right column
-    const RX = 420; ctx.textAlign = 'left'
+    // Coluna direita
+    const RX = 415
 
-    // Badge
-    ctx.fillStyle = 'rgba(222,173,42,0.15)'
-    rrect(ctx, RX, 190, 185, 34, 17); ctx.fill()
-    ctx.fillStyle = '#DEAD2A'; ctx.font = 'bold 12px sans-serif'
-    ctx.textAlign = 'center'; ctx.fillText('STEPBOOK', RX + 92, 212); ctx.textAlign = 'left'
+    // Badge STEPBOOK
+    ctx.fillStyle = 'rgba(212,175,55,0.15)'
+    rrect(ctx, RX, 190, 180, 32, 16); ctx.fill()
+    ctx.fillStyle = '#D4AF37'; ctx.font = 'bold 11px sans-serif'
+    ctx.textAlign = 'center'; ctx.fillText('STEPBOOK', RX + 90, 211); ctx.textAlign = 'left'
 
-    // Title — com wrap correto
+    // Título
     ctx.fillStyle = '#FFFFFF'; ctx.font = 'bold 34px "Georgia", serif'
-    wrapText(ctx, bookTitle, RX, 288, 580, 44, 3)
+    wrapText(ctx, bookTitle, RX, 280, 585, 44, 3)
 
-    // Author
-    ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.font = '400 22px sans-serif'
-    ctx.fillText(bookAuthor.slice(0, 40), RX, 400)
+    // Autor
+    ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.font = '400 21px sans-serif'
+    ctx.fillText(bookAuthor, RX, 395)
 
-    // Stars
+    // Estrelas
     for (let i = 0; i < 5; i++) {
-      ctx.fillStyle = i < stars ? '#DEAD2A' : 'rgba(255,255,255,0.2)'
-      ctx.font = '26px serif'; ctx.fillText('★', RX + i * 33, 448)
+      ctx.fillStyle = i < stars ? '#D4AF37' : 'rgba(255,255,255,0.2)'
+      ctx.font = '26px serif'; ctx.fillText('★', RX + i * 32, 440)
     }
 
-    // Progress bar
-    ctx.fillStyle = 'rgba(255,255,255,0.1)'; rrect(ctx, RX, 474, 540, 9, 4); ctx.fill()
+    // Barra de progresso
+    ctx.fillStyle = 'rgba(255,255,255,0.1)'; rrect(ctx, RX, 466, 540, 8, 4); ctx.fill()
     const pw = (progress / 100) * 540
     const pG = ctx.createLinearGradient(RX, 0, RX + pw, 0)
-    pG.addColorStop(0, '#DEAD2A'); pG.addColorStop(1, '#f5c842')
-    ctx.fillStyle = pG; rrect(ctx, RX, 474, pw, 9, 4); ctx.fill()
-    ctx.fillStyle = '#DEAD2A'; ctx.font = 'bold 16px sans-serif'
-    ctx.fillText(`${progress}% lido`, RX, 510)
+    pG.addColorStop(0, '#D4AF37'); pG.addColorStop(1, '#f5c842')
+    ctx.fillStyle = pG; rrect(ctx, RX, 466, pw, 8, 4); ctx.fill()
+    ctx.fillStyle = '#D4AF37'; ctx.font = 'bold 15px sans-serif'
+    ctx.fillText(`${progress}% lido`, RX, 500)
 
-    // Divider
-    const dG = ctx.createLinearGradient(80, 0, W - 80, 0)
-    dG.addColorStop(0, 'transparent'); dG.addColorStop(0.2, 'rgba(222,173,42,0.6)')
-    dG.addColorStop(0.8, 'rgba(222,173,42,0.6)'); dG.addColorStop(1, 'transparent')
-    ctx.strokeStyle = dG; ctx.lineWidth = 1
-    ctx.beginPath(); ctx.moveTo(80, 690); ctx.lineTo(W - 80, 690); ctx.stroke()
+    // Divisor dourado
+    goldLine(ctx, W, 685)
 
-    // Reflection
-    ctx.fillStyle = 'rgba(255,255,255,0.78)'; ctx.font = 'italic 400 24px "Georgia", serif'
-    wrapText(ctx, `"${feedText.slice(0, 160)}"`, 80, 745, W - 160, 36, 4)
+    // Reflexão
+    ctx.fillStyle = 'rgba(255,255,255,0.78)'; ctx.font = 'italic 400 23px "Georgia", serif'
+    wrapText(ctx, `"${feedText.slice(0, 170)}"`, 80, 740, W - 160, 34, 4)
 
-    // Footer
-    ctx.fillStyle = 'rgba(255,255,255,0.28)'; ctx.font = '400 16px sans-serif'
+    // Rodapé
+    ctx.fillStyle = 'rgba(255,255,255,0.28)'; ctx.font = '400 15px sans-serif'
     ctx.textAlign = 'right'; ctx.fillText('stepbook.vercel.app', W - 80, H - 40)
   }
 
-  // ── CARD STORIES 1080×1920 ───────────────────────────────
+  // ── CARD STORIES/PREMIUM 1080×1920 ───────────────────────────────────────
+  // Usa generatePremiumCard com alternância azul/preto
   const renderStories = async () => {
     const canvas = storiesRef.current
     if (!canvas) return
-    const ctx = canvas.getContext('2d')
-    const W = 1080, H = 1920
-    canvas.width = W; canvas.height = H
 
-    // BG azul marinho
-    const bg = ctx.createLinearGradient(0, 0, 0, H)
-    bg.addColorStop(0,   '#071020')
-    bg.addColorStop(0.5, '#091830')
-    bg.addColorStop(1,   '#0c1e3a')
-    ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H)
+    // Alterna base a cada geração: par → azul, ímpar → preto
+    cardCount++
+    const isFirst = cardCount % 2 !== 0  // 1,3,5... = azul | 2,4,6... = preto
 
-    // ── Ondas douradas (lado direito, múltiplas linhas) ──
-    drawWaves(ctx, W, H)
+    await generatePremiumCard(canvas, storyQuote, bookTitle, isFirst)
+    setPremiumReady(true)
 
-    // ── Logo centralizada no topo — tamanho grande com glow dourado ──
-    const logoImg = await getLogoImg()
-    const LS = 200  // grande para destaque máximo
-    const LX = W / 2 - LS / 2
-    if (logoImg) {
-      ctx.save()
-      ctx.shadowColor  = '#D4AF37'
-      ctx.shadowBlur   = 35
-      ctx.drawImage(logoImg, LX, 80, LS, LS)
-      ctx.restore()
-    } else {
-      ctx.fillStyle = '#DEAD2A'
-      ctx.font = '120px serif'
-      ctx.textAlign = 'center'
-      ctx.fillText('📖', W/2, 230)
-    }
-
-    // StepBook
-    ctx.fillStyle = '#DEAD2A'
-    ctx.font      = 'bold 68px "Georgia", serif'
-    ctx.textAlign = 'center'
-    ctx.shadowColor = 'rgba(212,175,55,0.3)'
-    ctx.shadowBlur  = 10
-    ctx.fillText('StepBook', W / 2, 330)
-    ctx.shadowBlur = 0
-
-    // Subtítulo
-    ctx.fillStyle = 'rgba(255,255,255,0.65)'
-    ctx.font      = '400 36px "Georgia", serif'
-    ctx.fillText('Li essa frase pelo StepBook', W / 2, 410)
-    ctx.fillText('que me fez refletir', W / 2, 456)
-
-    // Linha dourada
-    goldLine(ctx, W, 510)
-
-    // Frase principal
-    const quote = storyQuote.slice(0, 280)
-    ctx.fillStyle   = '#FFFFFF'
-    ctx.font        = 'italic bold 60px "Georgia", serif'
-    ctx.textAlign   = 'center'
-    ctx.shadowColor = 'rgba(0,0,0,0.3)'
-    ctx.shadowBlur  = 6
-    wrapTextCtr(ctx, `\u201c${quote}\u201d`, W / 2, 660, W - 140, 80, 8)
-    ctx.shadowBlur = 0
-
-    // Linha inferior
-    goldLine(ctx, W, 1450)
-
-    // Livro
-    ctx.fillStyle = 'rgba(255,255,255,0.5)'
-    ctx.font      = '400 38px sans-serif'
-    ctx.textAlign = 'center'
-    ctx.fillText('Livro:', W / 2, 1530)
-
-    ctx.fillStyle = '#DEAD2A'
-    ctx.font      = 'bold 42px "Georgia", serif'
-    wrapTextCtr(ctx, bookTitle, W / 2, 1592, W - 160, 52, 2)
-
-    // URL
-    ctx.fillStyle = 'rgba(255,255,255,0.32)'
-    ctx.font      = '400 30px sans-serif'
-    ctx.fillText('stepbook.vercel.app', W / 2, H - 55)
+    // Mensagem de compartilhamento — EXATAMENTE como pedido
+    setShareLink('Baixe o StepBook.vercel.app')
   }
 
-  // ── Ondas douradas fiel à referência ───────────────────
-  function drawWaves(ctx, W, H) {
-    // Onda principal dourada (à direita, como na imagem)
-    const waveConfigs = [
-      { startFrac: 0.38, amp1: 140, amp2: 70, freq1: 0.0030, freq2: 0.0055, lw: 2.0, alpha: 0.85 },
-      { startFrac: 0.42, amp1: 110, amp2: 55, freq1: 0.0032, freq2: 0.0058, lw: 1.2, alpha: 0.45 },
-      { startFrac: 0.46, amp1: 130, amp2: 65, freq1: 0.0028, freq2: 0.0052, lw: 0.8, alpha: 0.25 },
-      { startFrac: 0.50, amp1: 100, amp2: 50, freq1: 0.0035, freq2: 0.0060, lw: 0.6, alpha: 0.18 },
-      { startFrac: 0.55, amp1: 120, amp2: 60, freq1: 0.0025, freq2: 0.0048, lw: 0.5, alpha: 0.12 },
-      // Reflexo suave à esquerda
-      { startFrac: 0.20, amp1: 60,  amp2: 30, freq1: 0.0028, freq2: 0.0050, lw: 0.5, alpha: 0.10 },
-    ]
-
-    for (const wc of waveConfigs) {
-      ctx.save()
-      ctx.globalAlpha  = wc.alpha
-      ctx.strokeStyle  = '#DEAD2A'
-      ctx.lineWidth    = wc.lw
-      ctx.beginPath()
-      const startX = W * wc.startFrac
-      ctx.moveTo(startX, 0)
-      for (let y = 0; y <= H; y += 4) {
-        const x = startX
-          + Math.sin(y * wc.freq1) * wc.amp1
-          + Math.sin(y * wc.freq2 + 1.5) * wc.amp2
-        ctx.lineTo(x, y)
-      }
-      ctx.stroke()
-      ctx.restore()
-    }
-  }
-
-  // ── HELPERS ─────────────────────────────────────────────
-  function goldLine(ctx, W, y) {
-    const g = ctx.createLinearGradient(60, 0, W - 60, 0)
-    g.addColorStop(0,   'transparent')
-    g.addColorStop(0.15,'rgba(222,173,42,0.9)')
-    g.addColorStop(0.85,'rgba(222,173,42,0.9)')
-    g.addColorStop(1,   'transparent')
-    ctx.strokeStyle = g; ctx.lineWidth = 1.5
-    ctx.beginPath(); ctx.moveTo(60, y); ctx.lineTo(W - 60, y); ctx.stroke()
-  }
-
-  function rrect(ctx, x, y, w, h, r) {
-    ctx.beginPath()
-    ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y); ctx.arcTo(x+w,y,x+w,y+r,r)
-    ctx.lineTo(x+w,y+h-r); ctx.arcTo(x+w,y+h,x+w-r,y+h,r)
-    ctx.lineTo(x+r,y+h); ctx.arcTo(x,y+h,x,y+h-r,r)
-    ctx.lineTo(x,y+r); ctx.arcTo(x,y,x+r,y,r); ctx.closePath()
-  }
-
-  function wrapText(ctx, text, x, y, maxW, lh, maxLines = 99) {
-    const words = text.split(' '); let line = '', cy = y, lines = 0
-    for (const w of words) {
-      const t = line + w + ' '
-      if (ctx.measureText(t).width > maxW && line) {
-        ctx.fillText(line.trim(), x, cy)
-        line = w + ' '; cy += lh; lines++
-        if (lines >= maxLines) { ctx.fillText('…', x, cy); return }
-      } else line = t
-    }
-    if (line) ctx.fillText(line.trim(), x, cy)
-  }
-
-  function wrapTextCtr(ctx, text, cx, y, maxW, lh, maxLines = 99) {
-    const words = text.split(' '); let line = '', cy = y, lines = 0
-    for (const w of words) {
-      const t = line + w + ' '
-      if (ctx.measureText(t).width > maxW && line) {
-        ctx.fillText(line.trim(), cx, cy)
-        line = w + ' '; cy += lh; lines++
-        if (lines >= maxLines) { ctx.fillText('…', cx, cy); return }
-      } else line = t
-    }
-    if (line) ctx.fillText(line.trim(), cx, cy)
-  }
-
-  // ── AÇÕES ────────────────────────────────────────────────
+  // ── AÇÕES ────────────────────────────────────────────────────────────────
   const getCanvas = () => tab === 'feed' ? canvasRef.current : storiesRef.current
 
   const download = () => {
@@ -316,27 +329,25 @@ export default function ShareModal({ book, progress, mode = 'feed', quoteText = 
 
   const shareWA = () => {
     const txt = encodeURIComponent(
-      tab === 'stories' && quoteText
-        ? `"${quoteText}"\n\n— ${bookTitle}\n\nstepbook.vercel.app`
+      tab === 'stories'
+        ? shareLink   // "Baixe o StepBook.vercel.app"
         : `Estou lendo "${bookTitle}" — ${progress}% concluído!\n\nstepbook.vercel.app`
     )
     window.open(`https://wa.me/?text=${txt}`, '_blank')
   }
 
-  const copyText = async () => {
-    const t = tab === 'stories' && quoteText
-      ? `"${quoteText}" — ${bookTitle} | stepbook.vercel.app`
-      : `Estou lendo "${bookTitle}" — ${progress}% lido! stepbook.vercel.app`
-    await navigator.clipboard.writeText(t); toast('Texto copiado!')
+  const copyShareLink = async () => {
+    await navigator.clipboard.writeText(shareLink || 'Baixe o StepBook.vercel.app')
+    toast('Copiado!')
   }
 
   return (
     <div className="overlay center" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="modal" style={styles.modal}>
 
-        {/* Tabs */}
+        {/* ── Tabs ── */}
         <div style={styles.tabs}>
-          <button style={{...styles.tab, ...(tab==='feed' ? styles.tabOn : {})}} onClick={() => setTab('feed')}>
+          <button style={{...styles.tab, ...(tab==='feed'    ? styles.tabOn : {})}} onClick={() => setTab('feed')}>
             📊 Card Feed
           </button>
           <button style={{...styles.tab, ...(tab==='stories' ? styles.tabOn : {})}} onClick={() => setTab('stories')}>
@@ -344,12 +355,12 @@ export default function ShareModal({ book, progress, mode = 'feed', quoteText = 
           </button>
         </div>
 
-        {/* Feed */}
+        {/* ── Tab Feed ── */}
         {tab === 'feed' && (
           <>
             <canvas ref={canvasRef} style={styles.preview} />
             {reflections.length > 0 && (
-              <div style={{ marginBottom: 10 }}>
+              <div style={{ marginBottom:10 }}>
                 <span style={styles.lbl}>Reflexão no card:</span>
                 <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginTop:6 }}>
                   {reflections.map((r,i) => (
@@ -364,20 +375,39 @@ export default function ShareModal({ book, progress, mode = 'feed', quoteText = 
             <div style={{ display:'flex', alignItems:'center', gap:4, marginBottom:12 }}>
               <span style={styles.lbl}>Avaliação:</span>
               {[1,2,3,4,5].map(s => (
-                <button key={s}
-                  style={{...styles.star, color: s<=stars?'#DEAD2A':'var(--text3)'}}
+                <button key={s} style={{...styles.star, color: s<=stars?'#D4AF37':'var(--text3)'}}
                   onClick={() => setStars(s)}>★</button>
               ))}
             </div>
           </>
         )}
 
-        {/* Stories */}
+        {/* ── Tab Stories/Premium ── */}
         {tab === 'stories' && (
           <>
-            <div style={{ display:'flex', justifyContent:'center', marginBottom:12 }}>
+            <div style={{ display:'flex', justifyContent:'center', marginBottom:12, position:'relative' }}>
               <canvas ref={storiesRef} style={styles.storiesPrev} />
+              {/* Loader enquanto gera */}
+              {!premiumReady && (
+                <div style={styles.canvasLoader}>
+                  <div className="spinner" />
+                  <p style={{ fontSize:'0.75rem', color:'var(--text2)', marginTop:8 }}>
+                    Gerando card premium…
+                  </p>
+                </div>
+              )}
             </div>
+
+            {/* Botão para gerar novo card com alternância */}
+            <button
+              className="btn btn-ghost btn-sm"
+              style={{ width:'100%', marginBottom:10 }}
+              onClick={() => { setPremiumReady(false); renderStories() }}
+            >
+              🔄 Gerar outro estilo
+            </button>
+
+            {/* Frase no card */}
             {storyQuote && (
               <div style={{ marginBottom:8 }}>
                 <span style={styles.lbl}>Frase no card:</span>
@@ -386,20 +416,31 @@ export default function ShareModal({ book, progress, mode = 'feed', quoteText = 
                 </p>
               </div>
             )}
+
+            {/* Link de compartilhamento — EXATAMENTE "Baixe o StepBook.vercel.app" */}
+            {premiumReady && (
+              <div style={styles.shareBox}>
+                <span style={styles.shareText}>{shareLink}</span>
+                <button className="btn btn-ghost btn-sm" onClick={copyShareLink}>
+                  Copiar
+                </button>
+              </div>
+            )}
+
             {!quoteText && (
-              <p style={{ fontSize:'0.76rem', color:'var(--text3)', marginBottom:8 }}>
-                💡 Selecione um trecho do texto e toque no botão 💬 para criar um card personalizado.
+              <p style={{ fontSize:'0.75rem', color:'var(--text3)', marginBottom:6 }}>
+                💡 Selecione um trecho do texto e toque no botão 💬 para personalizar o card.
               </p>
             )}
           </>
         )}
 
-        {/* Botões */}
+        {/* ── Botões de compartilhamento ── */}
         <div style={styles.grid}>
           <button className="btn btn-gold btn-sm" onClick={shareWA}>💬 WhatsApp</button>
-          <button className="btn btn-ghost btn-sm" onClick={() => { download(); toast('Baixada! Salve nos Stories 📸') }}>📸 Instagram</button>
-          <button className="btn btn-ghost btn-sm" onClick={copyText}>📋 Copiar texto</button>
-          <button className="btn btn-ghost btn-sm" onClick={download}>⬇ Baixar imagem</button>
+          <button className="btn btn-ghost btn-sm" onClick={() => { download(); toast('Imagem baixada! 📸') }}>📸 Instagram</button>
+          <button className="btn btn-ghost btn-sm" onClick={copyShareLink}>📋 Copiar link</button>
+          <button className="btn btn-ghost btn-sm" onClick={download}>⬇ Baixar</button>
         </div>
 
         <button className="btn btn-ghost" style={{ width:'100%', marginTop:8 }} onClick={onClose}>
@@ -425,6 +466,11 @@ const styles = {
   tabOn: { background:'var(--gold-dim2)', borderColor:'var(--gold)', color:'var(--gold)' },
   preview: { width:'100%', borderRadius:8, border:'1px solid var(--border2)', marginBottom:12 },
   storiesPrev: { height:340, borderRadius:8, border:'1px solid var(--border2)', aspectRatio:'9/16' },
+  canvasLoader: {
+    position:'absolute', inset:0, display:'flex', flexDirection:'column',
+    alignItems:'center', justifyContent:'center',
+    background:'rgba(3,8,16,0.7)', borderRadius:8,
+  },
   lbl: {
     fontSize:'0.72rem', fontWeight:600, color:'var(--text3)',
     textTransform:'uppercase', letterSpacing:'0.08em', display:'block',
@@ -433,6 +479,16 @@ const styles = {
   quoteP: {
     color:'var(--gold)', fontStyle:'italic',
     fontFamily:"'Crimson Pro',serif", fontSize:'0.9rem', lineHeight:1.5, marginTop:4,
+  },
+  // Caixa "Baixe o StepBook.vercel.app"
+  shareBox: {
+    display:'flex', alignItems:'center', justifyContent:'space-between',
+    background:'var(--bg)', border:'1px solid var(--border2)',
+    borderRadius:'var(--radius)', padding:'10px 14px', marginBottom:10,
+  },
+  shareText: {
+    fontSize:'0.84rem', color:'var(--gold)',
+    fontWeight:600, letterSpacing:'0.02em',
   },
   grid: { display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:8 },
 }
