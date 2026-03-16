@@ -288,25 +288,71 @@ export default function ShareModal({ book, progress, mode = 'feed', quoteText = 
   }
 
   // ── Ações ─────────────────────────────────────────────────────────────────
-  const getCanvas = () => tab === 'feed' ? canvasRef.current : storiesRef.current
+  const getCanvas  = () => tab === 'feed' ? canvasRef.current : storiesRef.current
+  const fileName   = () => `stepbook-${tab}-${bookTitle.replace(/\s+/g,'-').slice(0,30)}.png`
+  const getTexto   = () => tab === 'stories'
+    ? SHARE_MSG
+    : `Estou lendo "${bookTitle}" — ${progress}% concluído!\n\nstepbook.vercel.app`
 
+  // Converte canvas → File para Web Share API
+  const canvasToFile = () => new Promise(resolve => {
+    getCanvas().toBlob(blob => {
+      resolve(blob ? new File([blob], fileName(), { type: 'image/png' }) : null)
+    }, 'image/png', 1.0)
+  })
+
+  // Compartilhamento nativo — abre direto WhatsApp/Instagram/etc no celular
+  const shareNativo = async (comTexto = true) => {
+    const file  = await canvasToFile()
+    const texto = getTexto()
+    if (!file) return false
+
+    // Web Share API com arquivo — suportado Chrome/Safari mobile
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({
+          files: [file],
+          ...(comTexto ? { text: texto } : {}),
+        })
+        return true
+      } catch (e) {
+        if (e.name === 'AbortError') return true // usuário cancelou — ok
+      }
+    }
+    return false
+  }
+
+  // WhatsApp — share nativo no mobile, fallback desktop
+  const shareWA = async () => {
+    const ok = await shareNativo(true)
+    if (!ok) {
+      // Desktop: baixa imagem + abre WhatsApp Web
+      download()
+      setTimeout(() => {
+        window.open(`https://wa.me/?text=${encodeURIComponent(getTexto())}`, '_blank')
+      }, 600)
+    }
+  }
+
+  // Instagram — share nativo no mobile (sem texto), fallback desktop
+  const shareIG = async () => {
+    const ok = await shareNativo(false)
+    if (!ok) {
+      download()
+      toast('Imagem salva! Abra Instagram → Story → galeria 📸')
+    }
+  }
+
+  // Download direto
   const download = () => {
     const a = document.createElement('a')
-    a.href = getCanvas().toDataURL('image/png')
-    a.download = `stepbook-${tab}-${bookTitle.replace(/\s+/g,'-').slice(0,30)}.png`
-    a.click(); toast('Imagem salva! ✅')
+    a.href = getCanvas().toDataURL('image/png', 1.0)
+    a.download = fileName()
+    a.click()
+    toast('Imagem salva! ✅')
   }
 
-  const shareWA = () => {
-    // Para Stories: mensagem exata "Baixe o StepBook.vercel.app"
-    const txt = encodeURIComponent(
-      tab === 'stories'
-        ? SHARE_MSG
-        : `Estou lendo "${bookTitle}" — ${progress}% concluído!\n\nstepbook.vercel.app`
-    )
-    window.open(`https://wa.me/?text=${txt}`, '_blank')
-  }
-
+  // Copiar mensagem
   const copyLink = async () => {
     await navigator.clipboard.writeText(SHARE_MSG)
     toast('Copiado!')
@@ -393,11 +439,18 @@ export default function ShareModal({ book, progress, mode = 'feed', quoteText = 
 
         {/* Botões de compartilhamento */}
         <div style={s.grid}>
-          <button className="btn btn-gold btn-sm" onClick={shareWA}>💬 WhatsApp</button>
-          <button className="btn btn-ghost btn-sm"
-            onClick={()=>{download();toast('Baixada! 📸')}}>📸 Instagram</button>
-          <button className="btn btn-ghost btn-sm" onClick={copyLink}>📋 Copiar link</button>
-          <button className="btn btn-ghost btn-sm" onClick={download}>⬇ Baixar</button>
+          <button className="btn btn-gold btn-sm" onClick={shareWA}>
+            💬 WhatsApp
+          </button>
+          <button className="btn btn-ghost btn-sm" onClick={shareIG}>
+            📸 Instagram
+          </button>
+          <button className="btn btn-ghost btn-sm" onClick={copyLink}>
+            📋 Copiar link
+          </button>
+          <button className="btn btn-ghost btn-sm" onClick={download}>
+            ⬇ Baixar
+          </button>
         </div>
 
         <button className="btn btn-ghost" style={{width:'100%',marginTop:8}} onClick={onClose}>
