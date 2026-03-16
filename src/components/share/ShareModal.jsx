@@ -27,22 +27,26 @@ async function generatePremiumCard(canvas, quoteText, bookTitle) {
   canvas.width  = W
   canvas.height = H
 
-  // ── Determina qual imagem base usar ANTES de incrementar ─────────────────
-  // Par (0,2,4...) → azul | Ímpar (1,3,5...) → preto
+  // ── Determina qual imagem base usar ─────────────────────────────────────
   const isFirst = cardGenerationCount % 2 === 0
   const baseUrl = isFirst ? CARD_AZUL : CARD_PRETO
 
-  // ── Carrega a imagem base com crossOrigin para evitar taint no canvas ─────
+  // ── Carrega a imagem base (SEM cache buster — ImgBB não suporta query params) ─
   const baseImg = await new Promise(resolve => {
     const img = new Image()
     img.crossOrigin = 'anonymous'
     img.onload  = () => resolve(img)
-    img.onerror = () => resolve(null)
-    // Cache buster para forçar novo load na alternância
-    img.src = baseUrl + '?v=' + cardGenerationCount
+    img.onerror = () => {
+      // Tenta sem crossOrigin como fallback
+      const img2 = new Image()
+      img2.onload  = () => resolve(img2)
+      img2.onerror = () => resolve(null)
+      img2.src = baseUrl
+    }
+    img.src = baseUrl
   })
 
-  // ── Passo 1: Desenha a imagem base cobrindo 100% do canvas ───────────────
+  // ── Passo 1: Desenha imagem base cobrindo 100% do canvas ──────────────
   if (baseImg) {
     ctx.drawImage(baseImg, 0, 0, W, H)
   } else {
@@ -50,28 +54,35 @@ async function generatePremiumCard(canvas, quoteText, bookTitle) {
     ctx.fillRect(0, 0, W, H)
   }
 
-  // ── Passo 2: Sobrepõe SOMENTE os textos dinâmicos nas áreas VAZIAS ────────
-  // A imagem base JÁ CONTÉM: logo, "StepBook", "Li essa frase...", ondas
-  // Y ajustados para a área VAZIA central (abaixo do subtítulo da base)
+  // ── Passo 2: Somente textos dinâmicos nas áreas VAZIAS da base ────────
+  // Base JÁ TEM: logo, "StepBook", "Li essa frase...", ondas, fundo
+  // Área vazia começa em ~Y=800 (após o subtítulo da imagem base)
 
   ctx.textAlign = 'center'
 
-  // 2a. Citação — começa em Y=700 para não sobrepor o subtítulo da base
-  // A imagem base tem "Li essa frase..." até ~Y=630 no canvas 1080×1920
+  // 2a. Citação — limitada a 100 chars, centralizada, italic bold
+  // Y=860 — bem abaixo do subtítulo fixo da base (~Y=750)
+  const quoteShort = quoteText.length > 100
+    ? quoteText.slice(0, 97) + '...'
+    : quoteText
   ctx.fillStyle = '#F4EFEA'
-  ctx.font      = 'italic bold 68px "Playfair Display", "Georgia", serif'
-  const quoteFull = `\u201c${quoteText.slice(0, 260)}\u201d`
-  wrapCentered(ctx, quoteFull, W / 2, 720, W - 140, 88, 9)
+  ctx.font      = 'italic bold 64px "Playfair Display", "Georgia", serif'
+  wrapCentered(ctx, `\u201c${quoteShort}\u201d`, W / 2, 860, W - 150, 84)
 
-  // 2b. Título do livro — Y 1480, com wrap máximo 2 linhas
+  // 2b. Título do livro — elegante, centralizado, quebra de linha natural
+  // Font menor para caber sem truncamento
   ctx.fillStyle = '#D4AF37'
-  ctx.font      = '600 38px "DM Sans", sans-serif'
-  wrapCentered(ctx, `Livro: ${bookTitle}`, W / 2, 1480, W - 160, 48, 2)
+  ctx.font      = '400 36px "Playfair Display", "Georgia", serif'
+  // "Livro:" em linha separada para elegância
+  ctx.fillText('Livro:', W / 2, 1470)
+  ctx.font = '600 38px "Playfair Display", "Georgia", serif'
+  // Título com wrap sem limite de linhas — cabe tudo
+  wrapCentered(ctx, bookTitle, W / 2, 1530, W - 160, 50)
 
-  return canvas.toDataURL('image/png', 1.0)  // qualidade máxima
+  return canvas.toDataURL('image/png', 1.0)
 }
 
-// ─── Wrap de texto centralizado ──────────────────────────────────────────────
+// ─── Wrap centralizado SEM truncamento forçado ───────────────────────────────
 function wrapCentered(ctx, text, cx, startY, maxW, lineH) {
   const words = text.split(' ')
   let line = '', cy = startY
@@ -79,9 +90,11 @@ function wrapCentered(ctx, text, cx, startY, maxW, lineH) {
     const test = line + word + ' '
     if (ctx.measureText(test).width > maxW && line) {
       ctx.fillText(line.trim(), cx, cy)
-      line = word + ' '; cy += lineH
-      if (cy > 1460) { ctx.fillText('…', cx, cy); return }
-    } else line = test
+      line = word + ' '
+      cy += lineH
+    } else {
+      line = test
+    }
   }
   if (line) ctx.fillText(line.trim(), cx, cy)
 }
