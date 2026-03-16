@@ -754,7 +754,7 @@
       <!-- Criar conta -->
       <p class="signup-link">
         Ainda não tem conta?
-        <a href="#">Criar gratuitamente</a>
+        <a href="/app" style="color:var(--gold);font-weight:600;text-decoration:none;">Criar gratuitamente</a>
       </p>
 
     </div><!-- /login-card -->
@@ -764,35 +764,100 @@
 
 
 <script>
-  function handleLogin(e) {
+  // ── Credenciais Supabase ────────────────────────────────────────────
+  const SUPABASE_URL  = 'https://lmwjkmtdyalqvloudlla.supabase.co'
+  const SUPABASE_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxtd2prbXRkeWFscXZsb3VkbGxhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM1NDQ2MzMsImV4cCI6MjA4OTEyMDYzM30.e4D-Cm2QJ2dxqtdoNUBMPq2sD5WbCo4eKYCxmYR36qE'
+  const APP_URL       = 'https://stepbook.vercel.app/app'
+
+  // ── Estado do botão ─────────────────────────────────────────────────
+  function setLoading(btn, loading) {
+    btn.disabled = loading
+    btn.textContent = loading ? 'Entrando...' : 'Entrar na Biblioteca'
+    btn.style.opacity = loading ? '0.7' : '1'
+  }
+
+  function showError(msg) {
+    let el = document.getElementById('login-error')
+    if (!el) {
+      el = document.createElement('p')
+      el.id = 'login-error'
+      el.style.cssText = 'color:#ff6b6b;font-size:0.82rem;margin-top:10px;text-align:center;'
+      document.querySelector('.btn-login').after(el)
+    }
+    el.textContent = msg
+  }
+
+  // ── Login com email/senha via Supabase REST ─────────────────────────
+  async function handleLogin(e) {
     e.preventDefault()
-    window.location.href = 'https://stepbook.vercel.app'
+    const email    = document.getElementById('email').value.trim()
+    const password = document.getElementById('password').value
+    const btn      = document.querySelector('.btn-login')
+
+    setLoading(btn, true)
+    showError('')
+
+    try {
+      const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': SUPABASE_KEY,
+          'Authorization': `Bearer ${SUPABASE_KEY}`
+        },
+        body: JSON.stringify({ email, password })
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        // Traduz erros comuns
+        const msg = data.error_description || data.msg || data.error || 'Erro ao entrar'
+        if (msg.includes('Invalid login')) showError('Email ou senha incorretos.')
+        else if (msg.includes('Email not confirmed')) showError('Confirme seu email antes de entrar.')
+        else showError(msg)
+        setLoading(btn, false)
+        return
+      }
+
+      // Salva sessão no localStorage com o formato que o Supabase JS espera
+      const storageKey = `sb-lmwjkmtdyalqvloudlla-auth-token`
+      localStorage.setItem(storageKey, JSON.stringify({
+        access_token:  data.access_token,
+        refresh_token: data.refresh_token,
+        expires_at:    Math.floor(Date.now() / 1000) + data.expires_in,
+        expires_in:    data.expires_in,
+        token_type:    data.token_type,
+        user:          data.user
+      }))
+
+      // Redireciona para o app já autenticado
+      window.location.href = APP_URL
+
+    } catch (err) {
+      showError('Erro de conexão. Tente novamente.')
+      setLoading(btn, false)
+    }
   }
 
-  // Ajuste 4 — Login com Google
+  // ── Login com Google (redireciona para OAuth do Supabase) ───────────
   function handleGoogleLogin() {
-    window.location.href = 'https://stepbook.vercel.app'
+    const redirectTo = encodeURIComponent(APP_URL)
+    window.location.href = `${SUPABASE_URL}/auth/v1/authorize?provider=google&redirect_to=${redirectTo}`
   }
 
-  // Efeito de foco nos inputs
+  // ── Efeito de foco nos inputs ───────────────────────────────────────
   document.querySelectorAll('.form-input').forEach(input => {
     const wrap = input.closest('.input-wrap')
     const icon = wrap?.querySelector('svg')
-    input.addEventListener('focus', () => {
-      if (icon) icon.style.color = 'var(--gold)'
-    })
-    input.addEventListener('blur', () => {
-      if (icon) icon.style.color = ''
-    })
+    input.addEventListener('focus', () => { if (icon) icon.style.color = 'var(--gold)' })
+    input.addEventListener('blur',  () => { if (icon) icon.style.color = '' })
   })
 
-  // Ajuste 3 — Fade-in sequencial dos cards de features (delay 200ms entre cada)
+  // ── Fade-in sequencial dos cards de features ────────────────────────
   document.addEventListener('DOMContentLoaded', () => {
-    const items = document.querySelectorAll('.feature-item')
-    items.forEach((item, index) => {
-      setTimeout(() => {
-        item.classList.add('visible')
-      }, 300 + index * 200) // 300ms base + 200ms de delay entre cada card
+    document.querySelectorAll('.feature-item').forEach((item, i) => {
+      setTimeout(() => item.classList.add('visible'), 300 + i * 200)
     })
   })
 </script>
