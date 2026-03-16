@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { useToast } from '../../hooks/useToast'
 
-// ─── Imagens base hospedadas — usadas como fundo completo do canvas ──────────
-const CARD_AZUL  = 'https://i.ibb.co/Q7km8JGM/card-azul-escuro-premium.png'
-const CARD_PRETO = 'https://i.ibb.co/s9SkV9qf/card-preto-gradiente-premium.png'
+// ─── Imagens base hospedadas — URLs DIRETAS do ImgBB ────────────────────────
+// Essas imagens já contêm: logo, "StepBook", "Li essa frase...", ondas, fundo
+// O código sobrepõe SOMENTE os textos dinâmicos nas áreas VAZIAS
+const CARD_AZUL  = 'https://i.ibb.co/Q7km8JGM/dreamina-2026-03-15-6884-Remove-the-central-quote-text-Se-desej.jpg'
+const CARD_PRETO = 'https://i.ibb.co/CKdNHKQc/dreamina-2026-03-15-6664-Remove-the-central-quote-text-Se-desej.jpg'
 
 // ─── Contador global de geração — controla alternância azul/preto ────────────
 // Par (0,2,4...) → azul | Ímpar (1,3,5...) → preto
@@ -47,33 +49,24 @@ async function generatePremiumCard(canvas, quoteText, bookTitle) {
     ctx.fillRect(0, 0, W, H)
   }
 
-  // ── Passo 2: Sobrepõe SOMENTE os textos dinâmicos ────────────────────────
-  // (logo, fundo, ondas, decorações já estão na imagem base — não recriar)
+  // ── Passo 2: Sobrepõe SOMENTE os textos dinâmicos nas áreas VAZIAS ──────────
+  // A imagem base JÁ CONTÉM: logo, "StepBook", "Li essa frase...", ondas, fundo
+  // NÃO repetir esses elementos — apenas citação dinâmica + título do livro
 
   ctx.textAlign = 'center'
 
-  // 2a. Frase introdutória
-  // Posição Y ajustada para o espaço vazio abaixo da logo na imagem base
-  ctx.fillStyle = '#D4AF37'
-  ctx.font      = '400 50px "Playfair Display", "Georgia", serif'
-  ctx.fillText('Li essa frase pelo StepBook', W / 2, 480)
-  ctx.fillText('que me fez refletir',         W / 2, 544)
-
-  // 2b. Citação central — italic, off-white, com wrap automático
+  // 2a. Citação central — área VAZIA da imagem (entre o subtítulo e o rodapé)
+  // Y 580 = abaixo do subtítulo fixo da base | limite 1380 = acima do rodapé
   ctx.fillStyle = '#F4EFEA'
   ctx.font      = 'italic bold 72px "Playfair Display", "Georgia", serif'
-  const quoteFull = `\u201c${quoteText.slice(0, 260)}\u201d`  // aspas tipográficas
-  wrapCentered(ctx, quoteFull, W / 2, 680, W - 120, 90)
+  const quoteFull = `\u201c${quoteText.slice(0, 260)}\u201d`
+  wrapCentered(ctx, quoteFull, W / 2, 580, W - 120, 90, 9)
 
-  // 2c. Crédito do livro
+  // 2b. Título do livro — abaixo da citação, acima do rodapé da base
   ctx.fillStyle = '#D4AF37'
-  ctx.font      = '600 42px "DM Sans", sans-serif'
-  ctx.fillText(`Livro: ${bookTitle.slice(0, 45)}`, W / 2, 1530)
-
-  // 2d. URL no rodapé (caso não esteja visível na base)
-  ctx.fillStyle = 'rgba(212,175,55,0.80)'
-  ctx.font      = '400 32px "DM Sans", sans-serif'
-  ctx.fillText('stepbook.vercel.app', W / 2, H - 48)
+  ctx.font      = '600 40px "DM Sans", sans-serif'
+  // Wrap para não sair da margem
+  wrapCentered(ctx, `Livro: ${bookTitle}`, W / 2, 1490, W - 140, 50, 2)
 
   return canvas.toDataURL('image/png')
 }
