@@ -5,9 +5,8 @@
     }
   },
   "rewrites": [
-    { "source": "/",          "destination": "/landing.html" },
-    { "source": "/app",       "destination": "/app/index.html" },
-    { "source": "/app/(.*)",  "destination": "/app/index.html" }
+    { "source": "/app/(.*)", "destination": "/app/index.html" },
+    { "source": "/app",      "destination": "/app/index.html" }
   ],
   "headers": [
     {
