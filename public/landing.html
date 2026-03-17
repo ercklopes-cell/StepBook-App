@@ -1,866 +1,1220 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>StepBook — Your Reading Journey, Elevated</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400;1,600&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StepBook — Leitura Ativa com IA</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #040916;
+  --bg2: #071228;
+  --gold: #D4AF37;
+  --gold-light: #f0d060;
+  --gold-dim: rgba(212,175,55,0.12);
+  --gold-mid: rgba(212,175,55,0.35);
+  --white: #F4EFEA;
+  --muted: rgba(244,239,234,0.55);
+  --gray: #4a4750;
+  --glass: rgba(255,255,255,0.025);
+  --border: rgba(212,175,55,0.15);
+}
 
-  <style>
-    /* ── TOKENS ─────────────────────────────────────────────────────── */
-    :root {
-      --navy-0:    #060d1a;
-      --navy-1:    #0a1428;
-      --navy-2:    #0f1e3a;
-      --navy-3:    #1a2f52;
-      --gold:      #D4AF37;
-      --gold-2:    #f5c842;
-      --gold-dim:  rgba(212,175,55,0.12);
-      --gold-glow: rgba(212,175,55,0.25);
-      --off-white: #F4EFEA;
-      --text-muted: rgba(244,239,234,0.55);
-      --text-dim:   rgba(244,239,234,0.28);
-      --cyan:      #38bdf8;
-      --panel-bg:  rgba(10,20,40,0.72);
-      --panel-border: rgba(212,175,55,0.18);
-      --input-line: rgba(212,175,55,0.35);
-      --input-focus: #D4AF37;
-      --radius:    10px;
-    }
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+img { max-width:100%; display:block; }
+html { scroll-behavior:smooth; overflow-x:hidden; }
 
-    /* ── RESET ──────────────────────────────────────────────────────── */
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body {
-      height: 100%;
-      overflow: hidden;
-      font-family: 'DM Sans', sans-serif;
-      background: var(--navy-0);
-      color: var(--off-white);
-      -webkit-font-smoothing: antialiased;
-    }
+body {
+  background: var(--bg);
+  color: var(--white);
+  font-family: 'Outfit', sans-serif;
+  font-weight: 300;
+  overflow-x: hidden;
+  width:100%;
+}
 
-    /* ── LAYOUT ROOT ────────────────────────────────────────────────── */
-    .page {
-      display: flex;
-      width: 100%;
-      height: 100vh;
-      position: relative;
-      overflow: hidden;
-    }
+/* NOISE */
+body::before {
+  content:'';
+  position:fixed; inset:0;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+  pointer-events:none; z-index:0; opacity:0.7;
+}
 
-    /* ═══════════════════════════════════════════════════════════════════
-       LEFT PANEL — fundo abstrato + logo + features
-    ═══════════════════════════════════════════════════════════════════ */
-    .left {
-      flex: 1.1;
-      position: relative;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      padding: 40px 48px;
-      overflow: hidden;
-    }
+/* GLOW BLOBS */
+.blob {
+  position:absolute;
+  border-radius:50%;
+  filter:blur(80px);
+  pointer-events:none;
+  z-index:0;
+}
 
-    /* Gradiente de fundo */
-    .left::before {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background:
-        radial-gradient(ellipse 80% 60% at 20% 30%, rgba(26,47,82,0.9) 0%, transparent 70%),
-        radial-gradient(ellipse 60% 80% at 80% 70%, rgba(6,13,26,0.8) 0%, transparent 60%),
-        linear-gradient(145deg, #060d1a 0%, #0a1428 40%, #0f1e3a 70%, #0a1428 100%);
-      z-index: 0;
-    }
+/* NAV */
+nav {
+  position:fixed; top:0; left:0; right:0; z-index:200;
+  display:flex; align-items:center; justify-content:space-between;
+  padding:1.2rem 6vw;
+  background:rgba(6,8,16,0.85);
+  backdrop-filter:blur(24px);
+  border-bottom:1px solid rgba(212,175,55,0.07);
+}
+.nav-logo { text-decoration:none; display:flex; align-items:center; padding:0.15rem 0; transition:filter .2s; }
+.nav-logo:hover { filter: drop-shadow(0 0 10px rgba(212,175,55,0.6)); }
+.nav-logo span { display:none; }
+.nav-right { display:flex; align-items:center; gap:1.4rem; }
+.nav-link {
+  font-size:0.78rem; letter-spacing:0.1em; text-transform:uppercase;
+  color:var(--muted); text-decoration:none; transition:color .2s;
+}
+.nav-link:hover { color:var(--white); }
+.nav-cta {
+  font-size:0.75rem; font-weight:600; letter-spacing:0.12em; text-transform:uppercase;
+  color:var(--bg); background:var(--gold); padding:0.55rem 1.4rem;
+  text-decoration:none; transition:background .2s, box-shadow .2s;
+}
+.nav-cta:hover { background:var(--gold-light); box-shadow:0 4px 20px rgba(212,175,55,0.4); }
 
-    /* SVG ondas decorativas */
-    .waves-svg {
-      position: absolute;
-      inset: 0;
-      width: 100%;
-      height: 100%;
-      z-index: 1;
-      opacity: 0.45;
-    }
+/* ─── HERO ─── */
+.hero {
+  position:relative; min-height:100svh;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  text-align:center; padding:7rem 6vw 4rem; overflow:hidden;
+}
+.hero .blob-1 {
+  width:600px; height:600px;
+  background:radial-gradient(circle,rgba(212,175,55,0.08),transparent 70%);
+  top:50%; left:50%; transform:translate(-50%,-50%);
+  animation:breathe 7s ease-in-out infinite;
+}
+.hero .blob-2 {
+  width:300px; height:300px;
+  background:radial-gradient(circle,rgba(60,80,180,0.07),transparent 70%);
+  top:20%; right:15%;
+}
+@keyframes breathe { 0%,100%{transform:translate(-50%,-50%) scale(1)}50%{transform:translate(-50%,-50%) scale(1.18)} }
 
-    /* Orbes de luz */
-    .orb {
-      position: absolute;
-      border-radius: 50%;
-      filter: blur(80px);
-      z-index: 1;
-      pointer-events: none;
-    }
-    .orb-1 {
-      width: 380px; height: 380px;
-      background: radial-gradient(circle, rgba(212,175,55,0.18) 0%, transparent 70%);
-      top: -60px; right: -80px;
-      animation: orbFloat 8s ease-in-out infinite;
-    }
-    .orb-2 {
-      width: 280px; height: 280px;
-      background: radial-gradient(circle, rgba(56,189,248,0.12) 0%, transparent 70%);
-      bottom: 40px; left: -40px;
-      animation: orbFloat 10s ease-in-out infinite reverse;
-    }
-    .orb-3 {
-      width: 200px; height: 200px;
-      background: radial-gradient(circle, rgba(212,175,55,0.10) 0%, transparent 70%);
-      bottom: 30%; right: 10%;
-      animation: orbFloat 12s ease-in-out infinite;
-    }
-    @keyframes orbFloat {
-      0%, 100% { transform: translateY(0) scale(1); }
-      50%       { transform: translateY(-24px) scale(1.05); }
-    }
+.hero-badge {
+  display:inline-flex; align-items:center; gap:0.5rem;
+  font-size:0.68rem; font-weight:500; letter-spacing:0.22em; text-transform:uppercase;
+  color:var(--gold); border:1px solid var(--gold-mid); padding:0.45rem 1.1rem;
+  margin-bottom:1.2rem; background:var(--gold-dim);
+  opacity:0; animation:fadeUp .7s .1s forwards;
+}
+.hero-badge::before { content:'◆'; font-size:0.5rem; }
 
-    /* Conteúdo da esquerda */
-    .left-content {
-      position: relative;
-      z-index: 2;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 10px;
-      max-width: 520px;
-      width: 100%;
-      max-height: calc(100vh - 40px);
-      animation: fadeSlideUp 0.8s cubic-bezier(.22,1,.36,1) both;
-    }
+.hero h1 {
+  font-family:'Playfair Display',serif;
+  font-size:clamp(1.8rem,3.5vw,3rem);
+  font-weight:700; line-height:1.12; letter-spacing:-0.01em; max-width:700px;
+  opacity:0; animation:fadeUp .7s .3s forwards; position:relative;
+}
+.hero h1 em { color:var(--gold); font-style:italic; display:inline; }
 
-    /* Logo block — logo + nome + tagline em bloco único centralizado */
-    .logo-block {
-      text-align: center;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 0;
-      margin-bottom: 0;
-    }
-    .logo-icon {
-      display: flex;
-      justify-content: center;
-      align-items: flex-end;
-      /* Compensa o espaço transparente inferior do PNG */
-      margin-bottom: -18px;
-    }
-    .logo-icon img {
-      display: block;
-      width: 130px;
-      height: 130px;
-      object-fit: contain;
-      filter: drop-shadow(0 0 22px rgba(212,175,55,0.65));
-      transition: filter 0.3s ease;
-    }
-    .logo-icon img:hover {
-      filter: drop-shadow(0 0 36px rgba(212,175,55,0.90));
-    }
-    .logo-name {
-      font-family: 'Playfair Display', serif;
-      font-size: 2.8rem;
-      font-weight: 700;
-      color: var(--gold);
-      letter-spacing: 0.04em;
-      line-height: 1;
-      text-shadow: 0 0 40px rgba(212,175,55,0.4);
-      display: block;
-      margin-top: 0;
-    }
-    .logo-tagline {
-      font-size: 0.72rem;
-      color: var(--text-muted);
-      letter-spacing: 0.22em;
-      text-transform: uppercase;
-      margin-top: 6px;
-      font-weight: 300;
-    }
+.hero-sub {
+  margin-top:1rem; max-width:520px;
+  font-size:clamp(0.8rem,1.2vw,0.95rem); line-height:1.7; color:var(--muted);
+  opacity:0; animation:fadeUp .7s .5s forwards; position:relative;
+}
 
-    /* Divisor dourado */
-    .gold-divider {
-      width: 120px;
-      height: 1px;
-      background: linear-gradient(90deg, transparent, var(--gold), transparent);
-      opacity: 0.5;
-      flex-shrink: 0;
-    }
+.hero-actions {
+  display:flex; align-items:center; gap:1rem; flex-wrap:wrap; justify-content:center;
+  margin-top:1.8rem; opacity:0; animation:fadeUp .7s .7s forwards; position:relative;
+}
 
-    /* Features — todas visíveis na viewport */
-    .features {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      width: 100%;
-      flex-shrink: 1;
-    }
-    .feature-item {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 7px 14px;
-      background: rgba(212,175,55,0.06);
-      border: 1px solid rgba(212,175,55,0.12);
-      border-radius: 8px;
-      backdrop-filter: blur(4px);
-      transition: background 0.2s, border-color 0.2s, transform 0.2s, opacity 0.7s ease-out;
-      opacity: 0;
-      transform: translateY(10px);
-    }
-    .feature-item.visible {
-      opacity: 1;
-      transform: translateY(0);
-    }
-    .feature-item:hover {
-      background: rgba(212,175,55,0.11);
-      border-color: rgba(212,175,55,0.28);
-      transform: translateX(3px);
-    }
+.btn-primary {
+  display:inline-flex; align-items:center; gap:0.5rem;
+  padding:1rem 2.6rem; background:var(--gold); color:var(--bg);
+  font-size:0.85rem; font-weight:700; letter-spacing:0.1em; text-transform:uppercase;
+  text-decoration:none; border:none; cursor:pointer; position:relative; overflow:hidden;
+  transition:transform .2s, box-shadow .3s;
+}
+.btn-primary::after {
+  content:''; position:absolute; inset:0;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,0.25),transparent);
+  transform:translateX(-100%); transition:transform .5s;
+}
+.btn-primary:hover::after { transform:translateX(100%); }
+.btn-primary:hover { transform:translateY(-2px); box-shadow:0 12px 40px rgba(212,175,55,0.45); }
 
-    .feature-icon {
-      width: 28px;
-      height: 28px;
-      border-radius: 7px;
-      background: linear-gradient(135deg, rgba(212,175,55,0.25), rgba(212,175,55,0.08));
-      border: 1px solid rgba(212,175,55,0.22);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-      font-size: 0.82rem;
-    }
-    .feature-text {
-      font-size: 0.84rem;
-      color: var(--off-white);
-      font-weight: 400;
-      line-height: 1.3;
-      letter-spacing: 0.01em;
-    }
-    .feature-text strong {
-      color: var(--gold-2);
-      font-weight: 600;
-    }
+.btn-ghost {
+  display:inline-flex; align-items:center; gap:0.5rem;
+  padding:0.95rem 2rem; border:1px solid var(--border);
+  color:var(--muted); font-size:0.82rem; font-weight:500; letter-spacing:0.08em;
+  text-decoration:none; transition:border-color .2s, color .2s;
+}
+.btn-ghost:hover { border-color:var(--gold-mid); color:var(--white); }
 
-    /* ═══════════════════════════════════════════════════════════════════
-       RIGHT PANEL — formulário de login
-    ═══════════════════════════════════════════════════════════════════ */
-    .right {
-      width: 420px;
-      min-width: 380px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 32px 24px;
-      position: relative;
-      background: rgba(6, 13, 26, 0.85);
-      border-left: 1px solid rgba(212,175,55,0.14);
-      backdrop-filter: blur(20px);
-      z-index: 10;
-      animation: fadeSlideLeft 0.7s cubic-bezier(.22,1,.36,1) both;
-      animation-delay: 0.1s;
-    }
+.hero-trust {
+  display:flex; align-items:center; gap:1.6rem; margin-top:1.4rem; flex-wrap:wrap; justify-content:center;
+  opacity:0; animation:fadeUp .7s .9s forwards; position:relative;
+}
+.trust-item { display:flex; flex-direction:column; align-items:center; }
+.trust-num {
+  font-family:'Playfair Display',serif; font-size:1.6rem; font-weight:700; color:var(--gold);
+}
+.trust-label { font-size:0.65rem; letter-spacing:0.18em; text-transform:uppercase; color:var(--gray); margin-top:2px; }
+.trust-sep { width:1px; height:36px; background:var(--border); }
 
-    .login-card {
-      width: 100%;
-      max-width: 360px;
-      display: flex;
-      flex-direction: column;
-      gap: 0;
-    }
+@keyframes fadeUp { from{opacity:0;transform:translateY(22px)} to{opacity:1;transform:translateY(0)} }
 
-    /* Header do login */
-    .login-header {
-      margin-bottom: 28px;
-    }
-    .login-greeting {
-      font-family: 'Playfair Display', serif;
-      font-size: 1.85rem;
-      font-weight: 700;
-      color: var(--off-white);
-      line-height: 1.2;
-      margin-bottom: 6px;
-    }
-    .login-greeting em {
-      font-style: italic;
-      color: var(--gold);
-    }
-    .login-sub {
-      font-size: 0.84rem;
-      color: var(--text-muted);
-      font-weight: 300;
-      letter-spacing: 0.03em;
-    }
+/* ─── HOW IT WORKS ─── */
+.how {
+  position:relative; padding:3rem 6vw;
+  background:linear-gradient(180deg,var(--bg) 0%,var(--bg2) 100%);
+}
+.section-label {
+  display:inline-flex; align-items:center; gap:0.7rem;
+  font-size:0.68rem; font-weight:500; letter-spacing:0.22em; text-transform:uppercase;
+  color:var(--gold); margin-bottom:0.6rem;
+}
+.section-label::before, .section-label::after {
+  content:''; display:block; width:18px; height:1px; background:var(--gold-mid);
+}
+.section-h {
+  font-family:'Playfair Display',serif;
+  font-size:clamp(1.4rem,2.8vw,2.2rem); font-weight:700; line-height:1.25; word-break:break-word;
+}
+.section-h em { color:var(--gold); font-style:italic; }
 
-    /* Inputs estilo linha */
-    .form-group {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      margin-bottom: 20px;
-    }
-    .form-label {
-      font-size: 0.72rem;
-      font-weight: 600;
-      color: var(--text-muted);
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-    }
-    .input-wrap {
-      position: relative;
-      display: flex;
-      align-items: center;
-    }
-    .input-wrap svg {
-      position: absolute;
-      left: 0;
-      color: var(--text-dim);
-      width: 16px;
-      height: 16px;
-      pointer-events: none;
-      transition: color 0.2s;
-    }
-    .form-input {
-      width: 100%;
-      background: transparent;
-      border: none;
-      border-bottom: 1.5px solid var(--input-line);
-      color: var(--off-white);
-      font-family: 'DM Sans', sans-serif;
-      font-size: 0.92rem;
-      font-weight: 400;
-      padding: 10px 0 10px 28px;
-      outline: none;
-      transition: border-color 0.25s;
-      letter-spacing: 0.02em;
-    }
-    .form-input::placeholder {
-      color: var(--text-dim);
-      font-size: 0.85rem;
-    }
-    .form-input:focus {
-      border-bottom-color: var(--gold);
-    }
-    .form-input:focus + .input-line,
-    .input-wrap:focus-within svg {
-      color: var(--gold);
-    }
-    /* linha animada no foco */
-    .input-underline {
-      position: absolute;
-      bottom: 0; left: 0;
-      height: 1.5px;
-      width: 0%;
-      background: linear-gradient(90deg, var(--gold), var(--gold-2));
-      transition: width 0.3s ease;
-      pointer-events: none;
-    }
-    .form-input:focus ~ .input-underline {
-      width: 100%;
-    }
+.how-grid {
+  display:grid; grid-template-columns:1fr 1fr; gap:2.5rem; align-items:start; margin-top:2.5rem;
+}
 
-    /* Linha opções */
-    .form-options {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 28px;
-    }
-    .checkbox-label {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      cursor: pointer;
-      font-size: 0.80rem;
-      color: var(--text-muted);
-      user-select: none;
-    }
-    .checkbox-custom {
-      width: 16px; height: 16px;
-      border: 1.5px solid var(--input-line);
-      border-radius: 4px;
-      background: transparent;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: all 0.2s;
-      flex-shrink: 0;
-    }
-    .checkbox-label input { display: none; }
-    .checkbox-label input:checked + .checkbox-custom {
-      background: var(--gold);
-      border-color: var(--gold);
-    }
-    .checkbox-label input:checked + .checkbox-custom::after {
-      content: '';
-      width: 4px; height: 7px;
-      border: 1.5px solid #000;
-      border-top: none; border-left: none;
-      transform: rotate(45deg) translateY(-1px);
-      display: block;
-    }
-    .forgot-link {
-      font-size: 0.80rem;
-      color: var(--gold);
-      text-decoration: none;
-      font-weight: 500;
-      opacity: 0.8;
-      transition: opacity 0.2s;
-    }
-    .forgot-link:hover { opacity: 1; text-decoration: underline; }
+/* Phone mockup */
+.phone-wrap {
+  position:relative; display:flex; justify-content:center; align-items:center;
+}
+.phone-glow {
+  position:absolute; width:320px; height:320px; border-radius:50%;
+  background:radial-gradient(circle,rgba(212,175,55,0.12),transparent 70%);
+  animation:breathe 5s ease-in-out infinite;
+}
+.phone-frame {
+  position:relative; z-index:2;
+  width:240px; background:#0d1120; border:1px solid var(--border);
+  border-radius:28px; overflow:hidden; padding:14px;
+  box-shadow:0 30px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(212,175,55,0.1);
+}
+.phone-notch {
+  width:60px; height:6px; background:#111827; border-radius:3px; margin:0 auto 12px;
+}
+.phone-screen { background:#080b15; border-radius:18px; padding:16px; }
+.phone-bar {
+  display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;
+}
+.phone-bar-title { font-size:0.55rem; font-weight:600; letter-spacing:0.12em; color:var(--gold); text-transform:uppercase; }
+.phone-progress-ring {
+  width:28px; height:28px; border-radius:50%;
+  background:conic-gradient(var(--gold) 72%, rgba(255,255,255,0.06) 0);
+  display:flex; align-items:center; justify-content:center;
+}
+.phone-progress-ring span { font-size:0.42rem; font-weight:700; color:var(--gold); }
+.phone-text { font-size:0.52rem; line-height:1.65; color:rgba(244,239,234,0.6); margin-bottom:12px; }
+.phone-question {
+  background:rgba(212,175,55,0.07); border:1px solid rgba(212,175,55,0.2);
+  border-radius:8px; padding:10px; margin-bottom:8px;
+}
+.phone-q-label { font-size:0.42rem; letter-spacing:0.15em; text-transform:uppercase; color:var(--gold); margin-bottom:4px; }
+.phone-q-text { font-size:0.5rem; line-height:1.6; color:var(--white); font-weight:500; }
+.phone-answer {
+  background:#111827; border-radius:8px; padding:8px;
+  font-size:0.48rem; line-height:1.6; color:rgba(244,239,234,0.7); margin-bottom:8px;
+}
+.phone-gate {
+  display:flex; align-items:center; gap:6px; justify-content:center;
+  background:var(--gold); border-radius:6px; padding:6px; cursor:pointer;
+}
+.phone-gate span { font-size:0.45rem; font-weight:700; color:var(--bg); letter-spacing:0.1em; text-transform:uppercase; }
 
-    /* Botão Login */
-    .btn-login {
-      width: 100%;
-      padding: 13px 24px;
-      border: none;
-      border-radius: var(--radius);
-      background: linear-gradient(135deg, #b8911e 0%, var(--gold) 40%, var(--gold-2) 100%);
-      color: #05100a;
-      font-family: 'DM Sans', sans-serif;
-      font-size: 0.88rem;
-      font-weight: 700;
-      letter-spacing: 0.10em;
-      text-transform: uppercase;
-      cursor: pointer;
-      position: relative;
-      overflow: hidden;
-      transition: transform 0.15s ease, box-shadow 0.2s ease;
-      box-shadow: 0 4px 20px rgba(212,175,55,0.30);
-      margin-bottom: 0;    /* Ajuste 4 — removido margin-bottom aqui, vai no google btn */
-    }
-    .btn-login::before {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(135deg, rgba(255,255,255,0.15), transparent);
-      opacity: 0;
-      transition: opacity 0.2s;
-    }
-    .btn-login:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 8px 32px rgba(212,175,55,0.50);
-    }
-    .btn-login:hover::before { opacity: 1; }
-    .btn-login:active { transform: translateY(0); }
+/* QUOTE floating button on phone */
+.phone-quote-btn {
+  position:absolute; bottom:28px; right:-20px; z-index:10;
+  width:54px; height:54px; background:var(--gold); border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  box-shadow:0 8px 24px rgba(212,175,55,0.5);
+  animation:float 3s ease-in-out infinite;
+  border:2px solid rgba(255,255,255,0.15);
+  cursor:pointer;
+}
+@keyframes float { 0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)} }
+.phone-quote-btn svg { color:#000; }
 
-    /* Ajuste 4 — Botão Login com Google */
-    .btn-google {
-      width: 100%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 12px;
-      padding: 12px 24px;
-      margin-top: 12px;
-      margin-bottom: 20px;
-      border: 1px solid rgba(255,255,255,0.15);
-      border-radius: 12px;
-      background: #ffffff;
-      color: #333333;
-      font-family: 'DM Sans', sans-serif;
-      font-size: 0.86rem;
-      font-weight: 600;
-      letter-spacing: 0.02em;
-      cursor: pointer;
-      transition: background 0.18s ease, box-shadow 0.18s ease, transform 0.12s ease;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.18);
-    }
-    .btn-google:hover {
-      background: #f0f0f0;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.22);
-      transform: translateY(-1px);
-    }
-    .btn-google:active { transform: translateY(0); }
+.how-steps { display:flex; flex-direction:column; gap:1rem; }
 
-    /* Divisor "ou" */
-    .or-divider {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin-bottom: 20px;
-    }
-    .or-divider::before,
-    .or-divider::after {
-      content: '';
-      flex: 1;
-      height: 1px;
-      background: rgba(212,175,55,0.15);
-    }
-    .or-text {
-      font-size: 0.72rem;
-      color: var(--text-dim);
-      letter-spacing: 0.10em;
-      text-transform: uppercase;
-    }
+.how-step {
+  display:flex; gap:1rem; align-items:flex-start;
+  padding:1.2rem 1.4rem;
+  border:1px solid var(--border); background:var(--glass);
+  backdrop-filter:blur(10px);
+  transition:border-color .3s, background .3s, transform .3s;
+}
+.how-step:hover { border-color:var(--gold-mid); background:var(--gold-dim); transform:translateX(6px); }
 
-    /* Link criar conta */
-    .signup-link {
-      text-align: center;
-      font-size: 0.83rem;
-      color: var(--text-muted);
-    }
-    .signup-link a {
-      color: var(--gold);
-      font-weight: 600;
-      text-decoration: none;
-      transition: opacity 0.2s;
-    }
-    .signup-link a:hover { opacity: 0.75; text-decoration: underline; }
+.how-step-num {
+  font-family:'Playfair Display',serif; font-size:1.4rem; font-weight:700;
+  color:var(--gold); line-height:1; flex-shrink:0; width:28px;
+}
+.how-step h3 { font-size:0.82rem; font-weight:600; margin-bottom:0.3rem; line-height:1.3; }
+.how-step p { font-size:0.82rem; line-height:1.7; color:var(--muted); }
+.how-step-icon { color:var(--gold); flex-shrink:0; margin-top:2px; }
 
-    /* Rodapé */
-    .footer {
-      position: absolute;
-      bottom: 18px;
-      left: 50%;
-      transform: translateX(-50%);
-      font-size: 0.72rem;
-      color: var(--text-dim);
-      letter-spacing: 0.08em;
-      white-space: nowrap;
-      z-index: 2;
-    }
-    .footer span {
-      color: rgba(212,175,55,0.45);
-    }
+/* ─── TESTIMONIALS ─── */
+.testimonials {
+  position:relative; padding:2.5rem 6vw;
+  text-align:center;
+  background:linear-gradient(180deg,var(--bg2) 0%,var(--bg) 100%);
+  overflow:hidden;
+}
+.testimonials .blob-bg {
+  position:absolute; width:500px; height:500px;
+  background:radial-gradient(circle,rgba(212,175,55,0.05),transparent 70%);
+  top:50%; left:50%; transform:translate(-50%,-50%); border-radius:50%;
+}
+.testimonials .section-label { justify-content:center; }
+.testimonials .section-label::before { display:none; }
+.testimonials .section-label::after { display:none; }
+.testimonials .section-h { margin:0 auto; max-width:600px; }
 
-    /* ── ANIMAÇÕES ──────────────────────────────────────────────────── */
-    @keyframes fadeSlideUp {
-      from { opacity: 0; transform: translateY(24px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
-    @keyframes fadeSlideLeft {
-      from { opacity: 0; transform: translateX(24px); }
-      to   { opacity: 1; transform: translateX(0); }
-    }
+.testi-grid {
+  display:grid; grid-template-columns:repeat(3,1fr); gap:1.5px; margin-top:2.8rem;
+}
 
-    /* ── RESPONSIVE ─────────────────────────────────────────────────── */
-    @media (max-width: 860px) {
-      body { overflow: auto; }
-      html, body { height: auto; }
-      .page {
-        flex-direction: column;
-        height: auto;
-        min-height: 100vh;
-        overflow: visible;
-      }
-      .left {
-        padding: 40px 24px 32px;
-        flex: none;
-      }
-      .right {
-        width: 100%;
-        min-width: unset;
-        border-left: none;
-        border-top: 1px solid rgba(212,175,55,0.14);
-        padding: 32px 24px 48px;
-      }
-      .logo-name { font-size: 2.4rem; }
-      .features { gap: 8px; }
-      .footer { bottom: 8px; }
-    }
-    @media (max-width: 420px) {
-      .left { padding: 32px 16px; }
-      .right { padding: 28px 16px 40px; }
-    }
-  </style>
+.testi-card {
+  background:var(--glass); border:1px solid var(--border);
+  padding:1.8rem 1.5rem; position:relative; overflow:hidden;
+  backdrop-filter:blur(12px); transition:transform .3s, border-color .3s;
+  text-align:center; display:flex; flex-direction:column; align-items:center;
+}
+.testi-card:hover { transform:translateY(-6px); border-color:var(--gold-mid); }
+.testi-card::before {
+  content:''; position:absolute; top:0; left:0; right:0; height:1px;
+  background:linear-gradient(90deg,transparent,var(--gold),transparent);
+  transform:scaleX(0); transition:transform .4s;
+}
+.testi-card:hover::before { transform:scaleX(1); }
+
+.testi-avatar {
+  width:68px; height:68px; border-radius:50%;
+  border:1px solid var(--gold-mid); overflow:hidden; margin:0 auto 1rem;
+  background:linear-gradient(135deg,#1a1a2e,#2a1f0a);
+  display:flex; align-items:center; justify-content:center; font-size:1.5rem;
+}
+
+.testi-stars { display:flex; justify-content:center; gap:3px; margin-bottom:0.8rem; }
+.testi-stars span { color:var(--gold); font-size:0.85rem; }
+
+.testi-quote {
+  font-family:'Playfair Display',serif; font-size:0.9rem; font-style:italic;
+  line-height:1.55; color:var(--white); margin-bottom:0.8rem;
+}
+.testi-text { font-size:0.78rem; line-height:1.65; color:var(--muted); margin-bottom:1rem; }
+
+.testi-divider { height:1px; background:var(--border); margin-bottom:1.2rem; }
+
+.testi-name {
+  font-family:'Playfair Display',serif; font-size:0.92rem; font-weight:600; color:var(--gold);
+}
+.testi-role { font-size:0.7rem; letter-spacing:0.1em; text-transform:uppercase; color:var(--gray); margin-top:2px; }
+
+/* wave divider */
+.wave-divider { width:100%; height:60px; position:relative; overflow:hidden; }
+.wave-svg { position:absolute; bottom:0; width:100%; opacity:0.15; }
+
+/* ─── CTA STRIP ─── */
+.cta-strip {
+  position:relative; padding:1.8rem 6vw;
+  background:linear-gradient(135deg,rgba(212,175,55,0.06),rgba(212,175,55,0.02));
+  border-top:1px solid var(--border); border-bottom:1px solid var(--border);
+  text-align:center; overflow:hidden;
+}
+.cta-strip .blob {
+  width:500px; height:500px;
+  background:radial-gradient(circle,rgba(212,175,55,0.08),transparent 70%);
+  top:50%; left:50%; transform:translate(-50%,-50%); border-radius:50%;
+}
+.cta-strip h2 {
+  font-family:'Playfair Display',serif;
+  font-size:clamp(2.2rem,5vw,4rem); font-weight:700; line-height:1.1; position:relative;
+}
+.cta-strip h2 strong { color:var(--gold); }
+.cta-strip h2 .lightning { font-style:normal; margin-left:0.3rem; }
+.cta-strip-sub {
+  margin:1.2rem auto 2.5rem; max-width:480px;
+  font-size:1rem; color:var(--gold); font-weight:500; letter-spacing:0.04em; position:relative;
+}
+
+/* ─── PLANS ─── */
+.plans { position:relative; padding:2rem 6vw 3rem; }
+.plans-wrap {
+  display:grid; grid-template-columns:1fr 1fr; max-width:780px; margin:0 auto;
+  border:1px solid var(--border); background:var(--glass); backdrop-filter:blur(16px);
+  overflow:hidden;
+}
+.plan {
+  padding:1.8rem 2rem; position:relative;
+}
+.plan:first-child { border-right:1px solid var(--border); }
+
+.plan-name {
+  font-family:'Playfair Display',serif; font-size:1.8rem; font-weight:600;
+  margin-bottom:0.2rem;
+}
+.plan-tagline { font-size:0.8rem; color:var(--muted); margin-bottom:1.8rem; }
+
+.plan-price-block { margin-bottom:1.8rem; }
+.plan-price {
+  font-family:'Playfair Display',serif; font-size:2.4rem; font-weight:700;
+}
+.plan.pro .plan-price { color:var(--gold); }
+.plan-price-note { font-size:0.75rem; color:var(--muted); margin-top:2px; }
+
+.plan-features { margin-bottom:2rem; }
+.plan-feat {
+  display:flex; align-items:flex-start; gap:0.8rem;
+  font-size:0.85rem; line-height:1.5; color:rgba(244,239,234,0.7); margin-bottom:0.85rem;
+}
+.plan-feat .check { color:var(--gold); flex-shrink:0; }
+.plan-feat.dim { color:rgba(244,239,234,0.25); }
+.plan-feat.dim .check { color:rgba(212,175,55,0.25); }
+
+.plan.pro::before {
+  content:''; position:absolute; top:0; left:0; right:0; height:2px;
+  background:linear-gradient(90deg,transparent,var(--gold),transparent);
+}
+.plan.pro .plan-badge {
+  display:inline-block; font-size:0.6rem; font-weight:700; letter-spacing:0.2em;
+  text-transform:uppercase; color:var(--bg); background:var(--gold);
+  padding:0.25rem 0.7rem; margin-bottom:1.2rem;
+}
+
+.plan-btn {
+  display:block; text-align:center; padding:0.95rem; font-size:0.82rem;
+  font-weight:700; letter-spacing:0.1em; text-transform:uppercase;
+  text-decoration:none; transition:all .2s; cursor:pointer; border:none; width:100%;
+}
+.plan-btn.outline {
+  border:1px solid var(--border); color:var(--muted); background:transparent;
+}
+.plan-btn.outline:hover { border-color:var(--gold-mid); color:var(--white); }
+.plan-btn.gold { background:var(--gold); color:var(--bg); }
+.plan-btn.gold:hover { background:var(--gold-light); box-shadow:0 8px 28px rgba(212,175,55,0.45); }
+
+.pix-note {
+  text-align:center; margin-top:1.2rem; font-size:0.72rem; letter-spacing:0.08em;
+  color:var(--gray);
+}
+.pix-note strong { color:var(--gold); }
+
+/* ─── QUOTE SECTION (HERO) ─── */
+.quote-hero {
+  position:relative; padding:3rem 6vw;
+  background:linear-gradient(160deg,var(--bg2),var(--bg));
+  overflow:hidden; text-align:center;
+}
+.quote-hero .blob-q {
+  width:700px; height:700px;
+  background:radial-gradient(circle,rgba(212,175,55,0.07),transparent 70%);
+  top:50%; left:50%; transform:translate(-50%,-50%); border-radius:50%;
+}
+
+.quote-eyebrow {
+  display:inline-flex; align-items:center; gap:0.6rem;
+  font-size:0.68rem; font-weight:500; letter-spacing:0.22em; text-transform:uppercase;
+  color:var(--gold); margin-bottom:1.2rem;
+}
+
+.quote-h {
+  font-family:'Playfair Display',serif;
+  font-size:clamp(2.2rem,5vw,3.8rem); font-weight:700; line-height:1.1;
+  max-width:780px; margin:0 auto; position:relative;
+}
+.quote-h strong { color:var(--gold); }
+.quote-h .flash { color:var(--gold); }
+
+.quote-lead {
+  max-width:540px; margin:1.6rem auto 0;
+  font-size:0.95rem; line-height:1.85; color:var(--muted); position:relative;
+}
+
+/* Cards showcase */
+.cards-stage {
+  position:relative; display:flex; justify-content:center;
+  align-items:flex-end; gap:2rem; margin-top:1.8rem; flex-wrap:wrap;
+  padding-bottom:2rem;
+}
+
+/* GLOW under cards */
+.cards-stage::before {
+  content:''; position:absolute; bottom:0; left:50%; transform:translateX(-50%);
+  width:500px; height:80px;
+  background:radial-gradient(ellipse,rgba(212,175,55,0.2),transparent 70%);
+  filter:blur(20px);
+}
+
+/* Individual share card */
+.share-card {
+  background:linear-gradient(145deg,#0e1220,#070a14);
+  border:1px solid var(--border); overflow:hidden;
+  position:relative; transition:transform .4s cubic-bezier(.17,.67,.35,1.2), box-shadow .4s;
+  cursor:pointer;
+}
+.share-card:hover { box-shadow:0 24px 60px rgba(212,175,55,0.18); }
+.share-card::before {
+  content:''; position:absolute; top:0; left:0; right:0; height:1px;
+  background:linear-gradient(90deg,transparent,var(--gold),transparent);
+}
+
+.sc-stories {
+  width:155px; height:276px; padding:14px 12px;
+  display:flex; flex-direction:column; justify-content:space-between;
+}
+.sc-stories:hover { transform:rotate(-2deg) translateY(-12px); }
+
+.sc-linkedin {
+  width:290px; height:160px; padding:16px 18px;
+  display:flex; flex-direction:column; justify-content:space-between;
+}
+.sc-linkedin:hover { transform:translateY(-12px) scale(1.02); }
+
+.sc-stories-2 {
+  width:155px; height:276px; padding:14px 12px;
+  display:flex; flex-direction:column; justify-content:space-between;
+  opacity:0.55;
+}
+.sc-stories-2:hover { transform:rotate(2deg) translateY(-12px); opacity:0.9; }
+
+.sc-logo {
+  font-family:'Playfair Display',serif; font-size:0.58rem; color:var(--gold);
+  letter-spacing:0.18em; text-transform:uppercase;
+  border-bottom:1px solid rgba(212,175,55,0.2); padding-bottom:7px; margin-bottom:8px;
+  display:flex; justify-content:space-between; align-items:center;
+}
+.sc-logo-dot { width:4px; height:4px; background:var(--gold); border-radius:50%; }
+
+.sc-quote-mark {
+  font-family:'Playfair Display',serif; font-size:2.5rem; line-height:0.5;
+  color:rgba(212,175,55,0.15); margin-bottom:4px;
+}
+
+.sc-quote-text {
+  font-family:'Playfair Display',serif; font-size:0.58rem; font-style:italic;
+  line-height:1.65; color:rgba(244,239,234,0.8); flex:1;
+}
+
+.sc-footer { margin-top:8px; }
+.sc-meta {
+  display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;
+}
+.sc-chapter { font-size:0.45rem; letter-spacing:0.12em; text-transform:uppercase; color:var(--gray); }
+.sc-score { font-size:0.52rem; font-weight:700; color:var(--gold); }
+
+.sc-bar-track { height:2px; background:rgba(255,255,255,0.06); border-radius:1px; overflow:hidden; }
+.sc-bar-fill { height:100%; background:linear-gradient(90deg,var(--gold),var(--gold-light)); transition:width 1s; }
+
+/* LinkedIn card specifics */
+.sc-linkedin .sc-quote-text { font-size:0.6rem; }
+.sc-linkedin-tag {
+  display:inline-block; font-size:0.45rem; font-weight:600; letter-spacing:0.15em;
+  text-transform:uppercase; background:var(--gold-dim); color:var(--gold);
+  border:1px solid rgba(212,175,55,0.2); padding:2px 6px; margin-top:5px;
+}
+
+/* QUOTE button */
+.btn-quote {
+  display:inline-flex; align-items:center; gap:0.7rem;
+  margin-top:2rem; padding:1.1rem 2.5rem;
+  background:transparent; border:1px solid var(--gold);
+  color:var(--gold); font-size:0.85rem; font-weight:600; letter-spacing:0.1em;
+  text-transform:uppercase; cursor:pointer; position:relative;
+  transition:background .3s, color .3s; overflow:hidden;
+}
+.btn-quote::before {
+  content:''; position:absolute; inset:0;
+  background:var(--gold); transform:scaleX(0); transform-origin:left;
+  transition:transform .3s; z-index:0;
+}
+.btn-quote:hover::before { transform:scaleX(1); }
+.btn-quote:hover { color:var(--bg); }
+.btn-quote span, .btn-quote svg { position:relative; z-index:1; }
+
+.quote-proof {
+  display:flex; justify-content:center; gap:3rem; margin-top:1.8rem; position:relative;
+}
+.qp-item { text-align:center; }
+.qp-num {
+  font-family:'Playfair Display',serif; font-size:1.5rem; font-weight:700; color:var(--gold);
+}
+.qp-label { font-size:0.65rem; letter-spacing:0.15em; text-transform:uppercase; color:var(--gray); margin-top:2px; }
+
+/* ─── FOOTER ─── */
+footer {
+  border-top:1px solid rgba(212,175,55,0.08); padding:2rem 6vw 1.5rem;
+  display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:1.5rem;
+}
+.footer-brand { max-width:240px; }
+.footer-logo-text {
+  font-family:'Playfair Display',serif; font-size:1.15rem; color:var(--gold); letter-spacing:0.06em;
+}
+.footer-logo-text span { color:var(--white); font-style:italic; }
+.footer-desc { font-size:0.78rem; line-height:1.7; color:var(--muted); margin-top:0.8rem; }
+
+.footer-links { display:flex; flex-direction:column; gap:0.7rem; }
+.footer-links a {
+  font-size:0.75rem; letter-spacing:0.08em; text-transform:uppercase;
+  color:var(--gray); text-decoration:none; transition:color .2s;
+}
+.footer-links a:hover { color:var(--gold); }
+
+.footer-seal {
+  display:flex; flex-direction:column; align-items:flex-end; gap:0.6rem;
+}
+.seal-row { display:flex; align-items:center; gap:0.6rem; }
+.seal-icon {
+  width:30px; height:30px; border:1px solid var(--gold-mid);
+  display:flex; align-items:center; justify-content:center; color:var(--gold);
+}
+.seal-text { font-size:0.7rem; letter-spacing:0.08em; color:var(--gray); }
+.footer-copy {
+  width:100%; border-top:1px solid rgba(255,255,255,0.04);
+  padding-top:1.4rem; font-size:0.68rem; color:var(--gray); letter-spacing:0.05em; text-align:center;
+}
+
+/* ─── SCROLL REVEAL ─── */
+.reveal { opacity:0; transform:translateY(28px); transition:opacity .7s ease,transform .7s ease; }
+.reveal.in { opacity:1; transform:none; }
+.d1{transition-delay:.1s} .d2{transition-delay:.2s} .d3{transition-delay:.3s} .d4{transition-delay:.4s}
+
+/* ─── RESPONSIVE ─── */
+@media(max-width:900px){
+  .how-grid,.testi-grid,.plans-wrap{grid-template-columns:1fr}
+  .plan:first-child{border-right:none;border-bottom:1px solid var(--border)}
+  .hero-trust{flex-wrap:wrap;gap:1rem}
+  .trust-sep{display:none}
+  footer{flex-direction:column}
+  .footer-seal{align-items:flex-start}
+  .hero h1{font-size:clamp(1.5rem,5vw,2.2rem)}
+  .how-grid{gap:2rem}
+  nav{padding:0.9rem 4vw}
+}
+@media(max-width:600px){
+  .cards-stage{gap:1rem}
+  .sc-stories,.sc-stories-2{width:120px;height:214px}
+  .sc-linkedin{width:240px;height:136px}
+}
+
+/* ─── SCORE SECTION ─── */
+.score-section {
+  position:relative;
+  padding:2.5rem 6vw 3rem;
+  background:linear-gradient(180deg,var(--bg) 0%,var(--bg2) 100%);
+  overflow:hidden;
+}
+.score-section::before {
+  content:'';
+  position:absolute; inset:0;
+  background:radial-gradient(ellipse 70% 60% at 50% 50%, rgba(212,175,55,0.05), transparent);
+  pointer-events:none;
+}
+.score-inner {
+  max-width:1000px; margin:0 auto;
+  display:grid; grid-template-columns:1fr auto 1fr; gap:3rem; align-items:center;
+}
+.score-left { display:flex; flex-direction:column; gap:1.2rem; }
+.score-label-block {
+  display:inline-flex; align-items:center; gap:0.6rem;
+  font-size:0.65rem; font-weight:600; letter-spacing:0.22em; text-transform:uppercase;
+  color:var(--gold); margin-bottom:0.2rem;
+}
+.score-left h2 {
+  font-family:'Playfair Display',serif;
+  font-size:clamp(1.3rem,2.5vw,2rem); font-weight:700; line-height:1.2;
+}
+.score-left h2 em { color:var(--gold); font-style:italic; }
+.score-left p { font-size:0.82rem; line-height:1.75; color:var(--muted); max-width:340px; }
+.score-metrics { display:flex; flex-direction:column; gap:0.8rem; margin-top:0.4rem; }
+.score-metric {
+  display:flex; align-items:center; gap:0.8rem;
+}
+.score-metric-label {
+  font-size:0.68rem; letter-spacing:0.1em; text-transform:uppercase;
+  color:var(--muted); width:110px; flex-shrink:0;
+}
+.score-bar-track {
+  flex:1; height:4px; background:rgba(255,255,255,0.06); border-radius:2px; overflow:hidden;
+}
+.score-bar-fill {
+  height:100%; border-radius:2px;
+  background:linear-gradient(90deg,var(--gold),var(--gold-light));
+  transition:width 1.5s cubic-bezier(.16,1,.3,1);
+}
+.score-metric-val {
+  font-size:0.72rem; font-weight:700; color:var(--gold); width:32px; text-align:right;
+}
+
+/* Central ring */
+.score-ring-wrap {
+  display:flex; flex-direction:column; align-items:center; gap:0.8rem; flex-shrink:0;
+}
+.score-ring {
+  position:relative; width:160px; height:160px;
+}
+.score-ring svg { width:100%; height:100%; transform:rotate(-90deg); }
+.score-ring-bg { fill:none; stroke:rgba(212,175,55,0.08); stroke-width:8; }
+.score-ring-fill {
+  fill:none; stroke:url(#goldGrad); stroke-width:8;
+  stroke-linecap:round;
+  stroke-dasharray: 439; /* 2π * 70 */
+  stroke-dashoffset: 439;
+  transition: stroke-dashoffset 1.8s cubic-bezier(.16,1,.3,1);
+}
+.score-ring-fill.animated { stroke-dashoffset: 57; } /* 439 * (1 - 0.87) */
+.score-center {
+  position:absolute; inset:0; display:flex; flex-direction:column;
+  align-items:center; justify-content:center;
+}
+.score-number {
+  font-family:'Playfair Display',serif;
+  font-size:2rem; font-weight:700; color:var(--gold); line-height:1;
+  counter-reset: score;
+}
+.score-pct { font-size:0.60rem; letter-spacing:0.12em; text-transform:uppercase; color:var(--muted); margin-top:3px; }
+.score-ring-label {
+  font-size:0.65rem; letter-spacing:0.18em; text-transform:uppercase; color:var(--gray);
+  text-align:center;
+}
+.score-ring-glow {
+  position:absolute; inset:-20px; border-radius:50%;
+  background:radial-gradient(circle,rgba(212,175,55,0.12),transparent 70%);
+  animation:breathe 4s ease-in-out infinite;
+  pointer-events:none;
+}
+
+/* Right side */
+.score-right { display:flex; flex-direction:column; gap:1rem; }
+.score-insight {
+  padding:1rem 1.2rem;
+  border:1px solid var(--border); background:var(--glass);
+  backdrop-filter:blur(8px);
+  border-radius:2px;
+  display:flex; gap:0.8rem; align-items:flex-start;
+}
+.score-insight-icon {
+  width:28px; height:28px; border:1px solid var(--gold-mid);
+  display:flex; align-items:center; justify-content:center;
+  color:var(--gold); flex-shrink:0;
+}
+.score-insight-text { font-size:0.78rem; line-height:1.6; color:var(--muted); }
+.score-insight-text strong { color:var(--white); font-weight:600; display:block; margin-bottom:2px; font-size:0.8rem; }
+
+@media(max-width:900px){
+  .score-inner { grid-template-columns:1fr; gap:2rem; }
+  .score-ring-wrap { margin:0 auto; }
+  .score-left p { max-width:100%; }
+}
+
+/* ─── SOCIAL PROOF (with photos) ─── */
+.testi-photo {
+  width:64px; height:64px; border-radius:50%;
+  border:2px solid var(--gold-mid);
+  overflow:hidden; flex-shrink:0; margin:0 auto 1rem;
+  display:flex; align-items:flex-end; justify-content:center;
+}
+.testi-card { display:flex; flex-direction:column; align-items:center; }
+.testi-avatar { display:none; }
+
+</style>
 </head>
 <body>
 
-<div class="page">
+<!-- NAV -->
+<nav>
+  <!-- CORREÇÃO 2 — Logo nova hospedada no ImgBB (sem base64) -->
+  <a href="/app" class="nav-logo" style="display:flex;align-items:center;gap:10px;text-decoration:none;">
+    <img src="https://i.ibb.co/Xkfz5QKL/sua-logo-stepbook.png"
+      alt="StepBook"
+      style="height:42px;width:auto;object-fit:contain;filter:drop-shadow(0 0 8px rgba(212,175,55,0.55));" />
+    <span style="font-family:'Playfair Display',serif;font-size:1.15rem;font-weight:700;color:#D4AF37;letter-spacing:0.04em;">StepBook</span>
+  </a>
+  <div class="nav-right">
+    <a href="#como-funciona" class="nav-link">Como Funciona</a>
+    <a href="/app" class="nav-cta">Começar Grátis</a>
+  </div>
+</nav>
 
-  <!-- ═══════════════════════════════════════════
-       ESQUERDA — hero + features
-  ════════════════════════════════════════════ -->
-  <div class="left">
+<!-- ─── HERO ─── -->
+<section class="hero">
+  <div class="blob blob-1"></div>
+  <div class="blob blob-2"></div>
+  <!-- CORREÇÃO 3 — Logo centralizada no topo do hero com glow dourado -->
+  <div style="display:flex;flex-direction:column;align-items:center;margin-bottom:0.6rem;opacity:0;animation:fadeUp .7s .05s forwards;">
+    <img
+      src="https://i.ibb.co/Xkfz5QKL/sua-logo-stepbook.png"
+      alt="StepBook"
+      style="width:140px;height:140px;object-fit:contain;filter:drop-shadow(0 0 18px rgba(212,175,55,0.55)) drop-shadow(0 0 6px rgba(212,175,55,0.30));"
+    />
+  </div>
+  <div class="hero-badge">Novo · Leitura com IA Cognitiva</div>
+  <h1>Leia. Questione. <em>Domine.</em></h1>
+  <p class="hero-sub">O leitor com IA que confronta sua compreensão e gera cards premium para suas redes sociais.</p>
+  <div class="hero-actions">
+    <a href="/app" class="btn-primary">Começar Gratuitamente →</a>
+    <a href="#como-funciona" class="btn-ghost">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>
+      Como funciona
+    </a>
+  </div>
+  <div class="hero-trust">
+    <div class="trust-item"><span class="trust-num">97%</span><span class="trust-label">Retenção</span></div>
+    <div class="trust-sep"></div>
+    <div class="trust-item"><span class="trust-num">3×</span><span class="trust-label">Mais Rápido</span></div>
+    <div class="trust-sep"></div>
+    <div class="trust-item"><span class="trust-num">∞</span><span class="trust-label">Livros no PRO</span></div>
+    <div class="trust-sep"></div>
+    <div class="trust-item"><span class="trust-num">R$6,99</span><span class="trust-label">Plano PRO</span></div>
+  </div>
+</section>
 
-    <!-- Orbes de luz ambiente -->
-    <div class="orb orb-1"></div>
-    <div class="orb orb-2"></div>
-    <div class="orb orb-3"></div>
 
-    <!-- Ondas SVG decorativas -->
-    <svg class="waves-svg" viewBox="0 0 700 900" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice">
-      <defs>
-        <linearGradient id="wg1" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%"   stop-color="#D4AF37" stop-opacity="0.7"/>
-          <stop offset="100%" stop-color="#f5c842" stop-opacity="0.1"/>
-        </linearGradient>
-        <linearGradient id="wg2" x1="100%" y1="0%" x2="0%" y2="100%">
-          <stop offset="0%"   stop-color="#D4AF37" stop-opacity="0.4"/>
-          <stop offset="100%" stop-color="#D4AF37" stop-opacity="0"/>
-        </linearGradient>
-      </defs>
-      <!-- Ondas principais -->
-      <path d="M 650 0 C 580 120, 480 80, 500 250 C 520 420, 680 380, 660 540 C 640 700, 480 680, 520 850 C 540 940, 660 900, 700 950" fill="none" stroke="url(#wg1)" stroke-width="1.5"/>
-      <path d="M 700 50 C 620 180, 520 130, 540 300 C 560 470, 720 440, 690 600 C 665 750, 500 720, 545 890" fill="none" stroke="url(#wg2)" stroke-width="1"/>
-      <path d="M 600 0 C 540 90, 440 60, 460 200 C 480 340, 640 310, 620 460 C 600 610, 440 590, 480 740 C 510 860, 640 840, 680 950" fill="none" stroke="url(#wg1)" stroke-width="0.7" opacity="0.5"/>
-      <!-- Pontos decorativos -->
-      <circle cx="560" cy="160" r="3" fill="#D4AF37" opacity="0.5"/>
-      <circle cx="620" cy="380" r="2" fill="#f5c842" opacity="0.4"/>
-      <circle cx="590" cy="580" r="3.5" fill="#D4AF37" opacity="0.35"/>
-      <circle cx="540" cy="780" r="2" fill="#f5c842" opacity="0.3"/>
-      <!-- Linha diagonal sutil -->
-      <line x1="0" y1="900" x2="300" y2="0" stroke="rgba(212,175,55,0.06)" stroke-width="80"/>
-    </svg>
+<!-- ─── SCORE SECTION ─── -->
+<section class="score-section">
+  <div class="score-inner">
 
-    <!-- Conteúdo principal -->
-    <div class="left-content">
-
-      <!-- Logo -->
-      <div class="logo-block">
-        <div class="logo-icon">
-          <img
-            src="https://i.ibb.co/ZpcdbXbF/gemini-2-5-flash-image-recria-essa-Logo-em-PNG-alta-qualidade-e-fundo-transparente-0-removebg-previe.png"
-            alt="StepBook Logo"
-            style="object-fit:contain;"
-          />
+    <!-- LEFT: labels + metric bars -->
+    <div class="score-left reveal">
+      <div class="score-label-block">◆ Sistema de Pontuação Premium</div>
+      <h2>Seu domínio real<br>sobre o livro. <em>Medido.</em></h2>
+      <p>Cada resposta é avaliada semanticamente pela IA — não basta acertar, é preciso demonstrar compreensão profunda. O score cresce com a qualidade das suas reflexões.</p>
+      <div class="score-metrics">
+        <div class="score-metric">
+          <span class="score-metric-label">Compreensão</span>
+          <div class="score-bar-track"><div class="score-bar-fill" style="width:87%" data-width="87%"></div></div>
+          <span class="score-metric-val">87%</span>
         </div>
-        <span class="logo-name">StepBook</span>
-        <p class="logo-tagline">Your Reading Journey, Elevated</p>
-      </div>
-
-      <div class="gold-divider"></div>
-
-      <!-- Features -->
-      <div class="features">
-        <div class="feature-item">
-          <div class="feature-icon">🧠</div>
-          <span class="feature-text"><strong>Mentor de Leitura</strong> com perguntas e avaliação por IA</span>
+        <div class="score-metric">
+          <span class="score-metric-label">Retenção</span>
+          <div class="score-bar-track"><div class="score-bar-fill" style="width:94%" data-width="94%"></div></div>
+          <span class="score-metric-val">94%</span>
         </div>
-        <div class="feature-item">
-          <div class="feature-icon">⚡</div>
-          <span class="feature-text"><strong>Quiz Interativo</strong> durante a leitura de cada capítulo</span>
+        <div class="score-metric">
+          <span class="score-metric-label">Profundidade</span>
+          <div class="score-bar-track"><div class="score-bar-fill" style="width:73%" data-width="73%"></div></div>
+          <span class="score-metric-val">73%</span>
         </div>
-        <div class="feature-item">
-          <div class="feature-icon">✨</div>
-          <span class="feature-text"><strong>Cards Premium</strong> para compartilhar nas redes sociais</span>
-        </div>
-        <div class="feature-item">
-          <div class="feature-icon">📊</div>
-          <span class="feature-text"><strong>% Progressão</strong> do livro em tempo real</span>
-        </div>
-        <div class="feature-item">
-          <div class="feature-icon">🏆</div>
-          <span class="feature-text"><strong>Pontuação</strong> por compreensão e reflexão</span>
-        </div>
-        <div class="feature-item">
-          <div class="feature-icon">📚</div>
-          <span class="feature-text"><strong>Biblioteca</strong> de livros e e-books em PDF</span>
+        <div class="score-metric">
+          <span class="score-metric-label">Aplicação</span>
+          <div class="score-bar-track"><div class="score-bar-fill" style="width:81%" data-width="81%"></div></div>
+          <span class="score-metric-val">81%</span>
         </div>
       </div>
+    </div>
 
-    </div><!-- /left-content -->
-
-    <!-- Rodapé esquerdo -->
-    <div class="footer">stepbook.vercel.app <span>·</span> © 2026</div>
-
-  </div><!-- /left -->
-
-
-  <!-- ═══════════════════════════════════════════
-       DIREITA — formulário de login
-  ════════════════════════════════════════════ -->
-  <div class="right">
-    <div class="login-card">
-
-      <!-- Header -->
-      <div class="login-header">
-        <h1 class="login-greeting">
-          Bem-vindo de volta,<br />
-          <em>leitor.</em>
-        </h1>
-        <p class="login-sub">Acesse sua Biblioteca Pessoal</p>
-      </div>
-
-      <!-- Formulário -->
-      <form onsubmit="handleLogin(event)">
-
-        <!-- Email -->
-        <div class="form-group">
-          <label class="form-label" for="email">Endereço de e-mail</label>
-          <div class="input-wrap">
-            <!-- ícone email -->
-            <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <rect x="1" y="3" width="14" height="10" rx="2" stroke="currentColor" stroke-width="1.3"/>
-              <path d="M1 5.5 L8 10 L15 5.5" stroke="currentColor" stroke-width="1.3"/>
-            </svg>
-            <input
-              type="email"
-              id="email"
-              class="form-input"
-              placeholder="seu@email.com"
-              autocomplete="email"
-              required
-            />
-            <span class="input-underline"></span>
-          </div>
-        </div>
-
-        <!-- Senha -->
-        <div class="form-group">
-          <label class="form-label" for="password">Senha</label>
-          <div class="input-wrap">
-            <!-- ícone cadeado -->
-            <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <rect x="3" y="7" width="10" height="8" rx="2" stroke="currentColor" stroke-width="1.3"/>
-              <path d="M5 7V5a3 3 0 0 1 6 0v2" stroke="currentColor" stroke-width="1.3"/>
-              <circle cx="8" cy="11" r="1.2" fill="currentColor"/>
-            </svg>
-            <input
-              type="password"
-              id="password"
-              class="form-input"
-              placeholder="••••••••"
-              autocomplete="current-password"
-              required
-            />
-            <span class="input-underline"></span>
-          </div>
-        </div>
-
-        <!-- Opções -->
-        <div class="form-options">
-          <label class="checkbox-label">
-            <input type="checkbox" />
-            <span class="checkbox-custom"></span>
-            Lembrar-me
-          </label>
-          <a href="#" class="forgot-link">Esqueci a senha?</a>
-        </div>
-
-        <!-- Botão Login -->
-        <button type="submit" class="btn-login">
-          Entrar na Biblioteca
-        </button>
-
-      </form>
-
-      <!-- Ajuste 4 — Botão Login com Google -->
-      <button type="button" class="btn-google" onclick="handleGoogleLogin()">
-        <!-- Ícone Google SVG inline — melhor que favicon.ico -->
-        <svg width="20" height="20" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
-          <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
-          <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
-          <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
-          <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+    <!-- CENTER: ring -->
+    <div class="score-ring-wrap reveal d2">
+      <div class="score-ring">
+        <div class="score-ring-glow"></div>
+        <svg viewBox="0 0 160 160">
+          <defs>
+            <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#D4AF37"/>
+              <stop offset="100%" stop-color="#f0d060"/>
+            </linearGradient>
+          </defs>
+          <circle class="score-ring-bg" cx="80" cy="80" r="70"/>
+          <circle class="score-ring-fill" id="scoreRing" cx="80" cy="80" r="70"/>
         </svg>
-        Login com Google
-      </button>
-      <div class="or-divider">
-        <span class="or-text">ou</span>
+        <div class="score-center">
+          <span class="score-number" id="scoreNum">87</span>
+          <span class="score-pct">Score de Domínio</span>
+        </div>
       </div>
+      <span class="score-ring-label">Atomic Habits · Cap. 12 de 20</span>
+    </div>
 
-      <!-- Criar conta -->
-      <p class="signup-link">
-        Ainda não tem conta?
-        <a href="/app" style="color:var(--gold);font-weight:600;text-decoration:none;">Criar gratuitamente</a>
-      </p>
+    <!-- RIGHT: insights -->
+    <div class="score-right reveal d3">
+      <div class="score-insight">
+        <div class="score-insight-icon">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        </div>
+        <div class="score-insight-text">
+          <strong>Análise Semântica Real</strong>
+          A IA identifica lacunas de compreensão e gera perguntas de refinamento personalizadas antes de liberar o próximo capítulo.
+        </div>
+      </div>
+      <div class="score-insight">
+        <div class="score-insight-icon">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        </div>
+        <div class="score-insight-text">
+          <strong>Score Acumulado por Livro</strong>
+          Cada livro gera um certificado de domínio com sua pontuação final — pronto para compartilhar ou usar como prova de aprendizado.
+        </div>
+      </div>
+      <div class="score-insight" style="border-color:rgba(212,175,55,0.3);background:rgba(212,175,55,0.04)">
+        <div class="score-insight-icon" style="border-color:var(--gold-mid)">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        </div>
+        <div class="score-insight-text">
+          <strong>Apenas no PRO: Score Profundo</strong>
+          Métricas avançadas de aplicação prática, comparação com outros leitores e histórico completo de evolução por livro.
+        </div>
+      </div>
+    </div>
 
-    </div><!-- /login-card -->
-  </div><!-- /right -->
+  </div>
+</section>
 
-</div><!-- /page -->
+<!-- ─── HOW IT WORKS ─── -->
+<section class="how" id="como-funciona">
+  <div class="reveal" style="text-align:center">
+    <div class="section-label">Como Funciona</div>
+    <h2 class="section-h" style="text-align:center;max-width:500px;margin:0 auto">Não é um leitor. <em>É um Mentor Cognitivo.</em></h2>
+  </div>
+  <div class="how-grid">
+    <!-- Phone mockup -->
+    <div class="phone-wrap reveal d1">
+      <div class="phone-glow"></div>
+      <div class="phone-frame">
+        <div class="phone-notch"></div>
+        <div class="phone-screen">
+          <div class="phone-bar">
+            <span class="phone-bar-title">Atomic Habits · Cap. 3</span>
+            <div class="phone-progress-ring"><span>72%</span></div>
+          </div>
+          <p class="phone-text">
+            "O sistema de hábitos atômicos parte de uma premissa simples: mudanças imensuráveis acumuladas ao longo do tempo produzem resultados extraordinários. Não são os grandes gestos, mas os micro-progressos diários..."
+          </p>
+          <div class="phone-question">
+            <div class="phone-q-label">◆ Pergunta Reflexiva</div>
+            <div class="phone-q-text">Como o conceito de "1% melhor por dia" se conecta com a ideia de identidade que o autor apresenta?</div>
+          </div>
+          <div class="phone-answer">Minha resposta: A identidade é moldada pelas evidências que acumulamos de nós mesmos através das ações repetidas...</div>
+          <div class="phone-gate"><span>✓ Gate Liberado · Próximo Capítulo</span></div>
+        </div>
+      </div>
+      <div class="phone-quote-btn">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      </div>
+    </div>
 
+    <!-- Steps -->
+    <div class="how-steps">
+      <div class="how-step reveal d1">
+        <div class="how-step-num">01</div>
+        <svg class="how-step-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+        <div>
+          <h3>Leitura Ativa e Cognitiva</h3>
+          <p>A IA gera perguntas reflexivas (PQ) e de múltipla escolha (CQ) a cada capítulo. Cada resposta acumula pontos de compreensão real — não de páginas lidas.</p>
+        </div>
+      </div>
+      <div class="how-step reveal d2">
+        <div class="how-step-num">02</div>
+        <svg class="how-step-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        <div>
+          <h3>Sistema de Gates — Fim da Dispersão</h3>
+          <p>Se sua resposta for rasa, a IA te confronta e exige refinamento. O capítulo só é liberado após validação semântica. Leitura passiva bloqueada.</p>
+        </div>
+      </div>
+      <div class="how-step reveal d3">
+        <div class="how-step-num">03</div>
+        <svg class="how-step-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>
+        <div>
+          <h3>Score Semântico de Domínio</h3>
+          <p>Cada resposta soma pontos baseados em métricas de aprendizado real. Seu score de domínio cresce com a profundidade das reflexões — não com o tempo de leitura.</p>
+        </div>
+      </div>
+      <div class="how-step reveal d4" style="border-color:var(--gold-mid);background:var(--gold-dim)">
+        <div class="how-step-num" style="color:var(--gold-light)">04</div>
+        <svg class="how-step-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+        <div>
+          <h3>Compartilhamentos Luxuosos</h3>
+          <p>Com um clique no botão <strong style="color:var(--gold)">QUOTE</strong>, gere cards 9:16 para Stories ou cards de autoridade para LinkedIn com sua melhor resposta e barra de progresso dourada.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── TESTIMONIALS ─── -->
+<section class="testimonials">
+  <div class="blob-bg"></div>
+
+  
+
+  <div class="section-label reveal" style="justify-content:center">O que nossos leitores dizem</div>
+  <h2 class="section-h reveal" style="text-align:center;max-width:500px;margin:0 auto">Retenção real. <em>Resultados visíveis.</em></h2>
+
+  <div class="testi-grid" style="margin-top:1.2rem">
+
+    <div class="testi-card reveal d1">
+      <div class="testi-photo"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCIgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0Ij4KICA8ZGVmcz4KICAgIDxyYWRpYWxHcmFkaWVudCBpZD0ic2cxIiBjeD0iNTAlIiBjeT0iMzUlIiByPSI1MCUiPgogICAgICA8c3RvcCBvZmZzZXQ9IjAlIiBzdG9wLWNvbG9yPSIjYzk5NTZhIi8+CiAgICAgIDxzdG9wIG9mZnNldD0iMTAwJSIgc3RvcC1jb2xvcj0iIzllNmI0NSIvPgogICAgPC9yYWRpYWxHcmFkaWVudD4KICAgIDxyYWRpYWxHcmFkaWVudCBpZD0ic2cyIiBjeD0iNTAlIiBjeT0iMCUiIHI9IjgwJSI+CiAgICAgIDxzdG9wIG9mZnNldD0iMCUiIHN0b3AtY29sb3I9IiMzZDJjMWUiLz4KICAgICAgPHN0b3Agb2Zmc2V0PSIxMDAlIiBzdG9wLWNvbG9yPSIjMWExMDA4Ii8+CiAgICA8L3JhZGlhbEdyYWRpZW50PgogICAgPGNsaXBQYXRoIGlkPSJzYyI+PGNpcmNsZSBjeD0iMzIiIGN5PSIzMiIgcj0iMzIiLz48L2NsaXBQYXRoPgogIDwvZGVmcz4KICA8cmVjdCB3aWR0aD0iNjQiIGhlaWdodD0iNjQiIGZpbGw9IiMxYTI1NDAiLz4KICA8ZyBjbGlwLXBhdGg9InVybCgjc2MpIj4KICAgIDwhLS0gc2hpcnQvYm9keSAtLT4KICAgIDxlbGxpcHNlIGN4PSIzMiIgY3k9IjcyIiByeD0iMjIiIHJ5PSIxNiIgZmlsbD0iIzJkNGE4YSIvPgogICAgPCEtLSBuZWNrIC0tPgogICAgPHJlY3QgeD0iMjciIHk9IjQyIiB3aWR0aD0iMTAiIGhlaWdodD0iMTQiIHJ4PSI0IiBmaWxsPSIjYzk5NTZhIi8+CiAgICA8IS0tIGhlYWQgLS0+CiAgICA8ZWxsaXBzZSBjeD0iMzIiIGN5PSIzMiIgcng9IjE2IiByeT0iMTgiIGZpbGw9InVybCgjc2cxKSIvPgogICAgPCEtLSBoYWlyIC0tPgogICAgPGVsbGlwc2UgY3g9IjMyIiBjeT0iMTciIHJ4PSIxNiIgcnk9IjgiIGZpbGw9InVybCgjc2cyKSIvPgogICAgPHJlY3QgeD0iMTYiIHk9IjE2IiB3aWR0aD0iNCIgaGVpZ2h0PSIxMiIgcng9IjIiIGZpbGw9IiMzZDJjMWUiLz4KICAgIDxyZWN0IHg9IjQ0IiB5PSIxNiIgd2lkdGg9IjQiIGhlaWdodD0iMTIiIHJ4PSIyIiBmaWxsPSIjM2QyYzFlIi8+CiAgICA8IS0tIGV5ZXMgLS0+CiAgICA8ZWxsaXBzZSBjeD0iMjUiIGN5PSIzMSIgcng9IjMiIHJ5PSIyLjUiIGZpbGw9IndoaXRlIi8+CiAgICA8ZWxsaXBzZSBjeD0iMzkiIGN5PSIzMSIgcng9IjMiIHJ5PSIyLjUiIGZpbGw9IndoaXRlIi8+CiAgICA8Y2lyY2xlIGN4PSIyNiIgY3k9IjMxIiByPSIyIiBmaWxsPSIjM2QyYzFlIi8+CiAgICA8Y2lyY2xlIGN4PSI0MCIgY3k9IjMxIiByPSIyIiBmaWxsPSIjM2QyYzFlIi8+CiAgICA8Y2lyY2xlIGN4PSIyNi44IiBjeT0iMzAuMiIgcj0iMC43IiBmaWxsPSJ3aGl0ZSIvPgogICAgPGNpcmNsZSBjeD0iNDAuOCIgY3k9IjMwLjIiIHI9IjAuNyIgZmlsbD0id2hpdGUiLz4KICAgIDwhLS0gZXllYnJvd3MgLS0+CiAgICA8cGF0aCBkPSJNMjIgMjcgUTI1IDI1LjUgMjggMjciIHN0cm9rZT0iIzVhM2MyYSIgc3Ryb2tlLXdpZHRoPSIxLjIiIGZpbGw9Im5vbmUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgogICAgPHBhdGggZD0iTTM2IDI3IFEzOSAyNS41IDQyIDI3IiBzdHJva2U9IiM1YTNjMmEiIHN0cm9rZS13aWR0aD0iMS4yIiBmaWxsPSJub25lIiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KICAgIDwhLS0gbm9zZSAtLT4KICAgIDxwYXRoIGQ9Ik0zMSAzNSBRMzIgMzggMzMgMzUiIHN0cm9rZT0iI2IwNzg1MCIgc3Ryb2tlLXdpZHRoPSIxIiBmaWxsPSJub25lIiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KICAgIDwhLS0gc21pbGUgLS0+CiAgICA8cGF0aCBkPSJNMjcgNDEgUTMyIDQ0LjUgMzcgNDEiIHN0cm9rZT0iI2IwNzg1MCIgc3Ryb2tlLXdpZHRoPSIxLjMiIGZpbGw9Im5vbmUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgogICAgPCEtLSBzdWJ0bGUgYmVhcmQvc3R1YmJsZSBzaGFkb3cgLS0+CiAgICA8ZWxsaXBzZSBjeD0iMzIiIGN5PSI0MCIgcng9IjEwIiByeT0iNCIgZmlsbD0icmdiYSg5MCw2MCw0MiwwLjE1KSIvPgogIDwvZz4KPC9zdmc+" alt="Artur S." width="64" height="64"/></div>
+      <div class="testi-stars">
+        <span>★</span><span>★</span><span>★</span><span>★</span><span>★</span>
+      </div>
+      <div class="testi-quote">"Perfeito para concurso."</div>
+      <p class="testi-text">Finalmente sinto que estou aprendendo de verdade após cada capítulo. O sistema de perguntas é agressivo do bom jeito — não deixa você sair sem entender.</p>
+      <div class="testi-divider"></div>
+      <div class="testi-name">Artur S.</div>
+      <div class="testi-role">Estudante para concurso público</div>
+    </div>
+
+    <div class="testi-card reveal d2" style="border-color:rgba(212,175,55,0.3);background:rgba(212,175,55,0.03)">
+      <div class="testi-photo"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCIgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0Ij4KICA8ZGVmcz4KICAgIDxyYWRpYWxHcmFkaWVudCBpZD0iZWcxIiBjeD0iNTAlIiBjeT0iMzUlIiByPSI1MCUiPgogICAgICA8c3RvcCBvZmZzZXQ9IjAlIiBzdG9wLWNvbG9yPSIjZDRhMzczIi8+CiAgICAgIDxzdG9wIG9mZnNldD0iMTAwJSIgc3RvcC1jb2xvcj0iI2E4Nzg1MCIvPgogICAgPC9yYWRpYWxHcmFkaWVudD4KICAgIDxyYWRpYWxHcmFkaWVudCBpZD0iZWcyIiBjeD0iNTAlIiBjeT0iMCUiIHI9IjcwJSI+CiAgICAgIDxzdG9wIG9mZnNldD0iMCUiIHN0b3AtY29sb3I9IiMyYzFhMTAiLz4KICAgICAgPHN0b3Agb2Zmc2V0PSIxMDAlIiBzdG9wLWNvbG9yPSIjMTUwYzA4Ii8+CiAgICA8L3JhZGlhbEdyYWRpZW50PgogICAgPGNsaXBQYXRoIGlkPSJlYyI+PGNpcmNsZSBjeD0iMzIiIGN5PSIzMiIgcj0iMzIiLz48L2NsaXBQYXRoPgogIDwvZGVmcz4KICA8cmVjdCB3aWR0aD0iNjQiIGhlaWdodD0iNjQiIGZpbGw9IiMxYTI1NDAiLz4KICA8ZyBjbGlwLXBhdGg9InVybCgjZWMpIj4KICAgIDwhLS0gYmxhemVyL3Nob3VsZGVycyAtLT4KICAgIDxlbGxpcHNlIGN4PSIzMiIgY3k9IjcyIiByeD0iMjYiIHJ5PSIxNiIgZmlsbD0iIzFlM2E1ZiIvPgogICAgPCEtLSBjb2xsYXIvc2hpcnQgLS0+CiAgICA8cGF0aCBkPSJNMjQgNTQgUTMyIDU4IDQwIDU0IEw0MiA3MiBMMjIgNzIgWiIgZmlsbD0iI2YwZWRlOCIvPgogICAgPCEtLSBuZWNrIC0tPgogICAgPHJlY3QgeD0iMjcuNSIgeT0iNDMiIHdpZHRoPSI5IiBoZWlnaHQ9IjE0IiByeD0iNCIgZmlsbD0iI2Q0YTM3MyIvPgogICAgPCEtLSBoZWFkIC0tPgogICAgPGVsbGlwc2UgY3g9IjMyIiBjeT0iMzEiIHJ4PSIxNSIgcnk9IjE3IiBmaWxsPSJ1cmwoI2VnMSkiLz4KICAgIDwhLS0gaGFpciBsb25nIC0tPgogICAgPGVsbGlwc2UgY3g9IjMyIiBjeT0iMTYiIHJ4PSIxNSIgcnk9IjciIGZpbGw9InVybCgjZWcyKSIvPgogICAgPHJlY3QgeD0iMTciIHk9IjE1IiB3aWR0aD0iNSIgaGVpZ2h0PSIyNiIgcng9IjMiIGZpbGw9IiMyYzFhMTAiLz4KICAgIDxyZWN0IHg9IjQyIiB5PSIxNSIgd2lkdGg9IjUiIGhlaWdodD0iMjYiIHJ4PSIzIiBmaWxsPSIjMmMxYTEwIi8+CiAgICA8IS0tIGhpZ2hsaWdodCAtLT4KICAgIDxlbGxpcHNlIGN4PSIyOCIgY3k9IjE0IiByeD0iNCIgcnk9IjIiIGZpbGw9InJnYmEoMjU1LDI1NSwyNTUsMC4xMikiLz4KICAgIDwhLS0gZXllcyAtLT4KICAgIDxlbGxpcHNlIGN4PSIyNS41IiBjeT0iMzAiIHJ4PSIzIiByeT0iMi41IiBmaWxsPSJ3aGl0ZSIvPgogICAgPGVsbGlwc2UgY3g9IjM4LjUiIGN5PSIzMCIgcng9IjMiIHJ5PSIyLjUiIGZpbGw9IndoaXRlIi8+CiAgICA8Y2lyY2xlIGN4PSIyNi4yIiBjeT0iMzAiIHI9IjIuMiIgZmlsbD0iIzJjMWExMCIvPgogICAgPGNpcmNsZSBjeD0iMzkuMiIgY3k9IjMwIiByPSIyLjIiIGZpbGw9IiMyYzFhMTAiLz4KICAgIDxjaXJjbGUgY3g9IjI3IiBjeT0iMjkuMiIgcj0iMC43IiBmaWxsPSJ3aGl0ZSIvPgogICAgPGNpcmNsZSBjeD0iNDAiIGN5PSIyOS4yIiByPSIwLjciIGZpbGw9IndoaXRlIi8+CiAgICA8IS0tIGxhc2hlcyAtLT4KICAgIDxwYXRoIGQ9Ik0yMi41IDI3LjUgUTI1LjUgMjYgMjguNSAyNy41IiBzdHJva2U9IiMxYTBmMDgiIHN0cm9rZS13aWR0aD0iMSIgZmlsbD0ibm9uZSIvPgogICAgPHBhdGggZD0iTTM1LjUgMjcuNSBRMzguNSAyNiA0MS41IDI3LjUiIHN0cm9rZT0iIzFhMGYwOCIgc3Ryb2tlLXdpZHRoPSIxIiBmaWxsPSJub25lIi8+CiAgICA8IS0tIG5vc2UgLS0+CiAgICA8cGF0aCBkPSJNMzEgMzQuNSBRMzIgMzcgMzMgMzQuNSIgc3Ryb2tlPSIjYjA4MDYwIiBzdHJva2Utd2lkdGg9IjEiIGZpbGw9Im5vbmUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgogICAgPCEtLSBsaXBzIC0tPgogICAgPHBhdGggZD0iTTI3LjUgNDAuNSBRMzIgNDQgMzYuNSA0MC41IiBzdHJva2U9IiNjMDYwNTAiIHN0cm9rZS13aWR0aD0iMS40IiBmaWxsPSJub25lIiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KICAgIDxwYXRoIGQ9Ik0yNy41IDQwLjUgUTMyIDQyIDM2LjUgNDAuNSIgZmlsbD0icmdiYSgxOTIsOTAsODAsMC4zKSIvPgogIDwvZz4KPC9zdmc+" alt="Fernanda L." width="64" height="64"/></div>
+      <div class="testi-stars">
+        <span>★</span><span>★</span><span>★</span><span>★</span><span>★</span>
+      </div>
+      <div class="testi-quote">"Melhor app de leitura, me ajuda muito focar e lembrar do que eu leio."</div>
+      <p class="testi-text">Tinha o hábito de ler sem absorver nada. Agora o StepBook me obriga a pensar. Meu score de domínio saiu de 40% para 89% em duas semanas.</p>
+      <div class="testi-divider"></div>
+      <div class="testi-name">Fernanda L.</div>
+      <div class="testi-role">Executiva — Requalificação Profissional</div>
+    </div>
+
+    <div class="testi-card reveal d3">
+      <div class="testi-photo"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCIgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0Ij4KICA8ZGVmcz4KICAgIDxyYWRpYWxHcmFkaWVudCBpZD0iamcxIiBjeD0iNTAlIiBjeT0iMzUlIiByPSI1MCUiPgogICAgICA8c3RvcCBvZmZzZXQ9IjAlIiBzdG9wLWNvbG9yPSIjN2E0YTJhIi8+CiAgICAgIDxzdG9wIG9mZnNldD0iMTAwJSIgc3RvcC1jb2xvcj0iIzRhMmMxNCIvPgogICAgPC9yYWRpYWxHcmFkaWVudD4KICAgIDxyYWRpYWxHcmFkaWVudCBpZD0iamcyIiBjeD0iNTAlIiBjeT0iMzAlIiByPSI3MCUiPgogICAgICA8c3RvcCBvZmZzZXQ9IjAlIiBzdG9wLWNvbG9yPSIjMWMxMDA4Ii8+CiAgICAgIDxzdG9wIG9mZnNldD0iMTAwJSIgc3RvcC1jb2xvcj0iIzBhMDYwNCIvPgogICAgPC9yYWRpYWxHcmFkaWVudD4KICAgIDxjbGlwUGF0aCBpZD0iamMiPjxjaXJjbGUgY3g9IjMyIiBjeT0iMzIiIHI9IjMyIi8+PC9jbGlwUGF0aD4KICA8L2RlZnM+CiAgPHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiBmaWxsPSIjMWEyNTQwIi8+CiAgPGcgY2xpcC1wYXRoPSJ1cmwoI2pjKSI+CiAgICA8IS0tIG91dGZpdCAtLT4KICAgIDxlbGxpcHNlIGN4PSIzMiIgY3k9IjcyIiByeD0iMjQiIHJ5PSIxNiIgZmlsbD0iI2M4OTAyYSIvPgogICAgPCEtLSBuZWNrIC0tPgogICAgPHJlY3QgeD0iMjcuNSIgeT0iNDMiIHdpZHRoPSI5IiBoZWlnaHQ9IjE0IiByeD0iNCIgZmlsbD0iIzdhNGEyYSIvPgogICAgPCEtLSBoZWFkIC0tPgogICAgPGVsbGlwc2UgY3g9IjMyIiBjeT0iMzEiIHJ4PSIxNSIgcnk9IjE3IiBmaWxsPSJ1cmwoI2pnMSkiLz4KICAgIDwhLS0gbmF0dXJhbCBoYWlyIChiaWcgY3VybHkpIC0tPgogICAgPGVsbGlwc2UgY3g9IjMyIiBjeT0iMTgiIHJ4PSIyMCIgcnk9IjE1IiBmaWxsPSJ1cmwoI2pnMikiLz4KICAgIDwhLS0gaGFpciB2b2x1bWUgbGVmdCAtLT4KICAgIDxjaXJjbGUgY3g9IjE3IiBjeT0iMjQiIHI9IjEwIiBmaWxsPSIjMTUwYTA0Ii8+CiAgICA8IS0tIGhhaXIgdm9sdW1lIHJpZ2h0IC0tPgogICAgPGNpcmNsZSBjeD0iNDciIGN5PSIyNCIgcj0iMTAiIGZpbGw9IiMxNTBhMDQiLz4KICAgIDwhLS0gaGFpciB0b3Agdm9sdW1lIC0tPgogICAgPGNpcmNsZSBjeD0iMzIiIGN5PSIxMiIgcj0iMTIiIGZpbGw9IiMxYzEwMDgiLz4KICAgIDwhLS0gZm9yZWhlYWQgaGlnaGxpZ2h0IC0tPgogICAgPGVsbGlwc2UgY3g9IjMyIiBjeT0iMjIiIHJ4PSI4IiByeT0iNCIgZmlsbD0icmdiYSgyNTUsMjU1LDI1NSwwLjA0KSIvPgogICAgPCEtLSBleWVzIC0tPgogICAgPGVsbGlwc2UgY3g9IjI1LjUiIGN5PSIzMSIgcng9IjMuMiIgcnk9IjIuNSIgZmlsbD0id2hpdGUiLz4KICAgIDxlbGxpcHNlIGN4PSIzOC41IiBjeT0iMzEiIHJ4PSIzLjIiIHJ5PSIyLjUiIGZpbGw9IndoaXRlIi8+CiAgICA8Y2lyY2xlIGN4PSIyNi4yIiBjeT0iMzEiIHI9IjIuMyIgZmlsbD0iIzE1MGEwNCIvPgogICAgPGNpcmNsZSBjeD0iMzkuMiIgY3k9IjMxIiByPSIyLjMiIGZpbGw9IiMxNTBhMDQiLz4KICAgIDxjaXJjbGUgY3g9IjI3IiBjeT0iMzAuMiIgcj0iMC43IiBmaWxsPSJ3aGl0ZSIvPgogICAgPGNpcmNsZSBjeD0iNDAiIGN5PSIzMC4yIiByPSIwLjciIGZpbGw9IndoaXRlIi8+CiAgICA8IS0tIGV5ZWJyb3dzIC0tPgogICAgPHBhdGggZD0iTTIyLjUgMjcuNSBRMjUuNSAyNi4yIDI4LjUgMjcuNSIgc3Ryb2tlPSIjMWMxMDA4IiBzdHJva2Utd2lkdGg9IjEuNCIgZmlsbD0ibm9uZSIvPgogICAgPHBhdGggZD0iTTM1LjUgMjcuNSBRMzguNSAyNi4yIDQxLjUgMjcuNSIgc3Ryb2tlPSIjMWMxMDA4IiBzdHJva2Utd2lkdGg9IjEuNCIgZmlsbD0ibm9uZSIvPgogICAgPCEtLSBub3NlIGJyb2FkIC0tPgogICAgPHBhdGggZD0iTTI5IDM1IFEzMiAzOC41IDM1IDM1IiBzdHJva2U9IiM1YTMwMTAiIHN0cm9rZS13aWR0aD0iMS4yIiBmaWxsPSJub25lIiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KICAgIDxlbGxpcHNlIGN4PSIzMCIgY3k9IjM1LjUiIHJ4PSIxLjUiIHJ5PSIxIiBmaWxsPSJyZ2JhKDUwLDI1LDEwLDAuMykiLz4KICAgIDxlbGxpcHNlIGN4PSIzNCIgY3k9IjM1LjUiIHJ4PSIxLjUiIHJ5PSIxIiBmaWxsPSJyZ2JhKDUwLDI1LDEwLDAuMykiLz4KICAgIDwhLS0gc21pbGUgLS0+CiAgICA8cGF0aCBkPSJNMjcgNDEuNSBRMzIgNDUuNSAzNyA0MS41IiBzdHJva2U9IiM4YTUwMzAiIHN0cm9rZS13aWR0aD0iMS40IiBmaWxsPSJub25lIiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KICAgIDwhLS0gdGVldGggaGludCAtLT4KICAgIDxwYXRoIGQ9Ik0yOC41IDQyIFEzMiA0NCAzNS41IDQyIiBmaWxsPSJyZ2JhKDI1NSwyNTUsMjU1LDAuNSkiLz4KICA8L2c+Cjwvc3ZnPg==" alt="Joana C." width="64" height="64"/></div>
+      <div class="testi-stars">
+        <span>★</span><span>★</span><span>★</span><span>★</span><span>★</span>
+      </div>
+      <div class="testi-quote">"Eu sempre quis compartilhar quotes. Agora fica lindo e automático."</div>
+      <p class="testi-text">Os cards gerados são incríveis. Todo post que faço com minha barra de progresso dourada gera engajamento absurdo. Parece que saiu de uma revista de luxo.</p>
+      <div class="testi-divider"></div>
+      <div class="testi-name">Joana C.</div>
+      <div class="testi-role">Empreendedora Digital</div>
+    </div>
+
+  </div>
+
+  
+</section>
+
+<!-- ─── CTA STRIP ─── -->
+<section class="cta-strip" id="planos">
+  <div class="blob"></div>
+  <h2 class="reveal">Leia de graça até <strong>1 livro completo.</strong> <span class="lightning">⚡</span></h2>
+  <p class="cta-strip-sub reveal">Atualize para Pro por apenas R$6,99 via Pix</p>
+  <a href="/app" class="btn-primary reveal" style="margin:0 auto;display:inline-flex">Começar Grátis →</a>
+</section>
+
+<!-- ─── PLANS ─── -->
+<section class="plans">
+  <div class="plans-wrap reveal">
+    <!-- FREE -->
+    <div class="plan free">
+      <div class="plan-name">Free</div>
+      <p class="plan-tagline">Para conhecer o método</p>
+      <div class="plan-price-block">
+        <div class="plan-price">R$0</div>
+        <p class="plan-price-note">Sempre gratuito, sem cartão</p>
+      </div>
+      <div class="plan-features">
+        <div class="plan-feat"><span class="check">◆</span> Leia 1 livro completo</div>
+        <div class="plan-feat"><span class="check">◆</span> Até 10 capítulos grátis</div>
+        <div class="plan-feat"><span class="check">◆</span> Perguntas básicas de compreensão</div>
+        <div class="plan-feat dim"><span class="check">◆</span> IA de confronto profundo</div>
+        <div class="plan-feat dim"><span class="check">◆</span> Score semântico avançado</div>
+        <div class="plan-feat dim"><span class="check">◆</span> Cards para Stories e LinkedIn</div>
+      </div>
+      <a href="/app" class="plan-btn outline">Começar Grátis</a>
+      <p style="font-size:0.68rem;color:var(--gray);margin-top:0.8rem;text-align:center">Sem compromisso · Cancele quando quiser</p>
+    </div>
+
+    <!-- PRO -->
+    <div class="plan pro">
+      <div class="plan-badge">Mais Popular</div>
+      <div class="plan-name">Pro</div>
+      <p class="plan-tagline">Para quem leva o aprendizado a sério</p>
+      <div class="plan-price-block">
+        <div class="plan-price">R$6,99</div>
+        <p class="plan-price-note">por 30 dias · via Pix · sem assinatura</p>
+      </div>
+      <div class="plan-features">
+        <div class="plan-feat"><span class="check">◆</span> <strong>Livros ilimitados</strong></div>
+        <div class="plan-feat"><span class="check">◆</span> Leitura completa, todos os capítulos</div>
+        <div class="plan-feat"><span class="check">◆</span> IA de confronto profundo</div>
+        <div class="plan-feat"><span class="check">◆</span> Score semântico de domínio</div>
+        <div class="plan-feat"><span class="check">◆</span> <strong style="color:var(--white)">Cards para Stories e LinkedIn</strong></div>
+        <div class="plan-feat"><span class="check">◆</span> Histórico completo de progresso</div>
+      </div>
+      <a href="/app" class="plan-btn gold">Assinar via Pix ⚡</a>
+      <p style="font-size:0.68rem;color:var(--gray);margin-top:0.8rem;text-align:center">Pagamento único · Acesso imediato</p>
+    </div>
+  </div>
+  <p class="pix-note reveal">🔒 Pagamento 100% seguro via <strong>Pix</strong> · Processado pelo Mercado Pago · Acesso em segundos</p>
+</section>
+
+<!-- ─── QUOTE CARDS SECTION ─── -->
+<section class="quote-hero">
+  <div class="blob-q blob"></div>
+  <div class="quote-eyebrow reveal">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+    Botão QUOTE
+  </div>
+  <h2 class="quote-h reveal">Gere cartões compartilháveis <strong>irresistíveis.</strong> <span class="flash">⚡</span></h2>
+  <p class="quote-lead reveal">Compartilhe frases impactantes que <strong style="color:var(--white)">geram likes</strong> nas suas redes sociais. Com um toque, crie um cartão elegante com seu score de domínio, a melhor resposta e link para o StepBook.</p>
+
+  <div class="cards-stage">
+
+    <!-- Stories card 1 -->
+    <div class="share-card sc-stories reveal d1">
+      <div class="sc-logo">
+        <img src="https://i.ibb.co/Xkfz5QKL/sua-logo-stepbook.png" alt="StepBook" style="height:14px;width:auto;object-fit:contain;filter:drop-shadow(0 0 4px rgba(212,175,55,0.4));" />
+        <span class="sc-logo-dot"></span>
+      </div>
+      <div class="sc-quote-mark">"</div>
+      <div class="sc-quote-text">A narrativa expõe a vulnerabilidade como força — não como fraqueza. A exposição cria a conexão genuína que transforma líderes.</div>
+      <div class="sc-footer">
+        <div class="sc-meta">
+          <span class="sc-chapter">Brené Brown · Cap. 7</span>
+          <span class="sc-score">94%</span>
+        </div>
+        <div class="sc-bar-track">
+          <div class="sc-bar-fill" style="width:94%"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- LinkedIn card -->
+    <div class="share-card sc-linkedin reveal">
+      <div class="sc-logo">
+        <img src="https://i.ibb.co/Xkfz5QKL/sua-logo-stepbook.png" alt="StepBook" style="height:14px;width:auto;object-fit:contain;filter:drop-shadow(0 0 4px rgba(212,175,55,0.4));" />
+        <span class="sc-logo-dot"></span>
+      </div>
+      <div class="sc-quote-text">Terminei o Cap. 7 de Atomic Habits com score 94 de domínio. A IA me confrontou 3× antes de liberar o próximo capítulo — e valeu cada vez.</div>
+      <div class="sc-footer">
+        <div class="sc-meta">
+          <span class="sc-chapter">Atomic Habits · James Clear</span>
+          <span class="sc-score">Score 94%</span>
+        </div>
+        <div class="sc-bar-track">
+          <div class="sc-bar-fill" style="width:94%"></div>
+        </div>
+        <div class="sc-linkedin-tag">stepbook.app</div>
+      </div>
+    </div>
+
+    <!-- Stories card 2 -->
+    <div class="share-card sc-stories-2 reveal d2">
+      <div class="sc-logo">
+        <img src="https://i.ibb.co/Xkfz5QKL/sua-logo-stepbook.png" alt="StepBook" style="height:14px;width:auto;object-fit:contain;filter:drop-shadow(0 0 4px rgba(212,175,55,0.4));" />
+        <span class="sc-logo-dot"></span>
+      </div>
+      <div class="sc-quote-mark">"</div>
+      <div class="sc-quote-text">Liderança exige presença antes de estratégia. Clareza interna precede toda decisão externa que realmente transforma.</div>
+      <div class="sc-footer">
+        <div class="sc-meta">
+          <span class="sc-chapter">Simon Sinek · Cap. 4</span>
+          <span class="sc-score">87%</span>
+        </div>
+        <div class="sc-bar-track">
+          <div class="sc-bar-fill" style="width:87%"></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div style="position:relative">
+    <a href="/app" class="btn-quote reveal" style="text-decoration:none">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+      <span>Gerar Meu Card de Progresso</span>
+    </a>
+  </div>
+
+  <div class="quote-proof reveal">
+    <div class="qp-item"><div class="qp-num">9:16</div><div class="qp-label">Stories</div></div>
+    <div class="trust-sep" style="height:36px"></div>
+    <div class="qp-item"><div class="qp-num">1:1</div><div class="qp-label">LinkedIn</div></div>
+    <div class="trust-sep" style="height:36px"></div>
+    <div class="qp-item"><div class="qp-num">1×</div><div class="qp-label">Clique</div></div>
+    <div class="trust-sep" style="height:36px"></div>
+    <div class="qp-item"><div class="qp-num">∞</div><div class="qp-label">Alcance</div></div>
+  </div>
+</section>
+
+<!-- ─── FOOTER ─── -->
+<footer>
+  <div class="footer-brand">
+    <div class="footer-logo-text"><img src="https://i.ibb.co/Xkfz5QKL/sua-logo-stepbook.png" alt="StepBook" style="height:44px;width:auto;object-fit:contain;filter:drop-shadow(0 0 8px rgba(212,175,55,0.5));" /></div>
+    <p class="footer-desc">O único leitor com IA que transforma compreensão em autoridade. Leitura ativa. Aprendizado real.</p>
+  </div>
+  <div class="footer-links">
+    <a href="#">Termos de Uso</a>
+    <a href="#">Política de Privacidade</a>
+    <a href="#">Suporte</a>
+    <a href="#">Blog</a>
+  </div>
+  <div class="footer-seal">
+    <div class="seal-row">
+      <div class="seal-icon">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      </div>
+      <span class="seal-text">Pagamento Seguro via Pix</span>
+    </div>
+    <div class="seal-row">
+      <div class="seal-icon">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+      </div>
+      <span class="seal-text">Mercado Pago Certificado</span>
+    </div>
+  </div>
+  <div class="footer-copy">© 2025 StepBook · Todos os direitos reservados</div>
+</footer>
 
 <script>
-  // ── Credenciais Supabase ────────────────────────────────────────────
-  const SUPABASE_URL  = 'https://lmwjkmtdyalqvloudlla.supabase.co'
-  const SUPABASE_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxtd2prbXRkeWFscXZsb3VkbGxhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM1NDQ2MzMsImV4cCI6MjA4OTEyMDYzM30.e4D-Cm2QJ2dxqtdoNUBMPq2sD5WbCo4eKYCxmYR36qE'
-  const APP_URL       = 'https://stepbook.vercel.app/app'
+// Scroll reveal
+const els = document.querySelectorAll('.reveal');
+const obs = new IntersectionObserver(entries => {
+  entries.forEach(e => { if(e.isIntersecting) e.target.classList.add('in'); });
+}, { threshold: 0.1 });
+els.forEach(el => obs.observe(el));
 
-  // ── Estado do botão ─────────────────────────────────────────────────
-  function setLoading(btn, loading) {
-    btn.disabled = loading
-    btn.textContent = loading ? 'Entrando...' : 'Entrar na Biblioteca'
-    btn.style.opacity = loading ? '0.7' : '1'
-  }
-
-  function showError(msg) {
-    let el = document.getElementById('login-error')
-    if (!el) {
-      el = document.createElement('p')
-      el.id = 'login-error'
-      el.style.cssText = 'color:#ff6b6b;font-size:0.82rem;margin-top:10px;text-align:center;'
-      document.querySelector('.btn-login').after(el)
+// Bar fill animation on scroll
+const bars = document.querySelectorAll('.sc-bar-fill');
+const barObs = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if(e.isIntersecting) {
+      const width = e.target.style.width;
+      e.target.style.width = '0%';
+      setTimeout(() => { e.target.style.width = width; }, 100);
     }
-    el.textContent = msg
-  }
+  });
+}, { threshold: 0.5 });
+bars.forEach(b => barObs.observe(b));
 
-  // ── Login com email/senha via Supabase REST ─────────────────────────
-  async function handleLogin(e) {
-    e.preventDefault()
-    const email    = document.getElementById('email').value.trim()
-    const password = document.getElementById('password').value
-    const btn      = document.querySelector('.btn-login')
+// Subtle mouse parallax on hero
+const heroH1 = document.querySelector('.hero h1');
+if(heroH1) {
+  window.addEventListener('mousemove', e => {
+    const x = (e.clientX / window.innerWidth - 0.5) * 12;
+    const y = (e.clientY / window.innerHeight - 0.5) * 12;
+    heroH1.style.transform = `translate(${x * 0.3}px, ${y * 0.3}px)`;
+  });
+}
 
-    setLoading(btn, true)
-    showError('')
-
-    try {
-      const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': SUPABASE_KEY,
-          'Authorization': `Bearer ${SUPABASE_KEY}`
-        },
-        body: JSON.stringify({ email, password })
-      })
-
-      const data = await res.json()
-
-      if (!res.ok) {
-        // Traduz erros comuns
-        const msg = data.error_description || data.msg || data.error || 'Erro ao entrar'
-        if (msg.includes('Invalid login')) showError('Email ou senha incorretos.')
-        else if (msg.includes('Email not confirmed')) showError('Confirme seu email antes de entrar.')
-        else showError(msg)
-        setLoading(btn, false)
-        return
-      }
-
-      // Salva sessão no localStorage com o formato que o Supabase JS espera
-      const storageKey = `sb-lmwjkmtdyalqvloudlla-auth-token`
-      localStorage.setItem(storageKey, JSON.stringify({
-        access_token:  data.access_token,
-        refresh_token: data.refresh_token,
-        expires_at:    Math.floor(Date.now() / 1000) + data.expires_in,
-        expires_in:    data.expires_in,
-        token_type:    data.token_type,
-        user:          data.user
-      }))
-
-      // Redireciona para o app já autenticado
-      window.location.href = APP_URL
-
-    } catch (err) {
-      showError('Erro de conexão. Tente novamente.')
-      setLoading(btn, false)
+// Score ring animation
+const scoreRing = document.getElementById('scoreRing');
+const scoreNum = document.getElementById('scoreNum');
+const ringObs = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if(e.isIntersecting) {
+      scoreRing.classList.add('animated');
+      // Animate number
+      let count = 0;
+      const target = 87;
+      const step = () => {
+        count = Math.min(count + 2, target);
+        scoreNum.textContent = count;
+        if(count < target) requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+      ringObs.unobserve(e.target);
     }
-  }
+  });
+}, { threshold: 0.3 });
+if(scoreRing) ringObs.observe(scoreRing);
 
-  // ── Login com Google (redireciona para OAuth do Supabase) ───────────
-  function handleGoogleLogin() {
-    const redirectTo = encodeURIComponent(APP_URL)
-    window.location.href = `${SUPABASE_URL}/auth/v1/authorize?provider=google&redirect_to=${redirectTo}`
-  }
-
-  // ── Efeito de foco nos inputs ───────────────────────────────────────
-  document.querySelectorAll('.form-input').forEach(input => {
-    const wrap = input.closest('.input-wrap')
-    const icon = wrap?.querySelector('svg')
-    input.addEventListener('focus', () => { if (icon) icon.style.color = 'var(--gold)' })
-    input.addEventListener('blur',  () => { if (icon) icon.style.color = '' })
-  })
-
-  // ── Fade-in sequencial dos cards de features ────────────────────────
-  document.addEventListener('DOMContentLoaded', () => {
-    document.querySelectorAll('.feature-item').forEach((item, i) => {
-      setTimeout(() => item.classList.add('visible'), 300 + i * 200)
-    })
-  })
 </script>
-
 </body>
 </html>
