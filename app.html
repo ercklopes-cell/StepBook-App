@@ -500,54 +500,236 @@ function isPageLocked(pageNum) {
 }
 
 // ═══════════════════════════════════════════════════════
-// CANVAS — SHARE CARD
+// CANVAS — SHARE CARD PREMIUM (canvas do zero)
 // ═══════════════════════════════════════════════════════
-let cardCount = 0
 
 async function generatePremiumCard(canvas, quoteText, bookTitle) {
   const ctx = canvas.getContext('2d')
   const W = 1080, H = 1920
   canvas.width = W; canvas.height = H
 
-  const baseImg = await new Promise(resolve => {
-    const img = new Image(); img.crossOrigin = 'anonymous'
-    img.onload = () => resolve(img); img.onerror = () => resolve(null)
-    img.src = CARD_BASE
+  // ── FUNDO ──────────────────────────────────────────────
+  ctx.fillStyle = '#060c18'
+  ctx.fillRect(0, 0, W, H)
+
+  // Glow dourado central
+  const glow = ctx.createRadialGradient(W/2, H/2, 0, W/2, H/2, 800)
+  glow.addColorStop(0,   'rgba(212,175,55,0.06)')
+  glow.addColorStop(0.6, 'rgba(212,175,55,0.02)')
+  glow.addColorStop(1,   'transparent')
+  ctx.fillStyle = glow; ctx.fillRect(0, 0, W, H)
+
+  // Grain sutil
+  for (let i = 0; i < 8000; i++) {
+    ctx.fillStyle = `rgba(255,255,255,${Math.random()*0.014})`
+    ctx.fillRect(Math.random()*W, Math.random()*H, 1, 1)
+  }
+
+  // ── MOLDURA ─────────────────────────────────────────────
+  const M = 52
+  ctx.strokeStyle = 'rgba(212,175,55,0.32)'; ctx.lineWidth = 1.5
+  ctx.strokeRect(M, M, W-M*2, H-M*2)
+
+  // Cantos em L
+  const CL = 64
+  ctx.strokeStyle = '#D4AF37'; ctx.lineWidth = 2.5; ctx.lineCap = 'square'
+  ;[[M,M,1,0,0,1],[W-M,M,-1,0,0,1],[M,H-M,1,0,0,-1],[W-M,H-M,-1,0,0,-1]]
+  .forEach(([x,y,sx,sy,ex,ey]) => {
+    ctx.beginPath()
+    ctx.moveTo(x+sx*CL, y+sy*CL); ctx.lineTo(x,y); ctx.lineTo(x+ex*CL, y+ey*CL)
+    ctx.stroke()
+    ctx.save(); ctx.translate(x,y); ctx.rotate(Math.PI/4)
+    ctx.fillStyle='#D4AF37'; ctx.fillRect(-4,-4,8,8); ctx.restore()
   })
 
-  if (baseImg) ctx.drawImage(baseImg, 0, 0, W, H)
-  else { ctx.fillStyle = '#0a1428'; ctx.fillRect(0, 0, W, H) }
+  // ── LOGO (topo) ─────────────────────────────────────────
+  const LOGO_SZ = 100
+  const LOGO_Y  = M + 80  // topo da logo
 
-  const ZONE_TOP = 790, ZONE_BOTTOM = 1360, ZONE_H = ZONE_BOTTOM - ZONE_TOP
+  const logo = await new Promise(r => {
+    const img = new Image(); img.crossOrigin = 'anonymous'
+    img.onload = () => r(img); img.onerror = () => r(null); img.src = LOGO_URL
+  })
+  if (logo) {
+    ctx.save()
+    ctx.shadowColor = 'rgba(212,175,55,0.5)'; ctx.shadowBlur = 28
+    ctx.drawImage(logo, W/2-LOGO_SZ/2, LOGO_Y, LOGO_SZ, LOGO_SZ)
+    ctx.restore()
+  }
+
   ctx.textAlign = 'center'
+  ctx.fillStyle = '#D4AF37'
+  ctx.font = '400 28px "Playfair Display", serif'
+  ctx.fillText('S T E P B O O K', W/2, LOGO_Y + LOGO_SZ + 46)
 
-  const quote    = quoteText.length > 100 ? quoteText.slice(0,97)+'...' : quoteText
-  const Q_FONT   = 'italic bold 62px "Playfair Display", serif'
-  const T_FONT   = '600 38px "Playfair Display", serif'
-  const LBL_FONT = 'italic 400 32px "Playfair Display", serif'
-  const Q_LH = 80, T_LH = 50
+  ctx.fillStyle = 'rgba(255,255,255,0.30)'
+  ctx.font = '400 18px "DM Sans", sans-serif'
+  ctx.fillText('LEITURA ATIVA COM IA', W/2, LOGO_Y + LOGO_SZ + 76)
 
-  ctx.font = Q_FONT
-  const qLines = measureLines(ctx, `\u201c${quote}\u201d`, W-150)
-  ctx.font = T_FONT
-  const tLines = measureLines(ctx, bookTitle, W-160)
+  // ── DIVISOR 1 ───────────────────────────────────────────
+  const DIV1 = LOGO_Y + LOGO_SZ + 112
+  pDiv(ctx, W, DIV1)
 
-  const totalH = qLines.length * Q_LH + 72 + 38 + 18 + tLines.length * T_LH
-  let cy = ZONE_TOP + Math.round((ZONE_H - totalH) / 2) + Q_LH
+  // ── TEXTO: layout top-down a partir de TXT_Y ───────────
+  // Tudo calculado de cima para baixo — sem centralização
+  const PAD_X  = 90          // margem lateral do texto
+  const MAX_W  = W - PAD_X*2
+  const TXT_Y  = DIV1 + 70   // onde começa o texto
 
-  ctx.fillStyle = '#F4EFEA'; ctx.font = Q_FONT
-  for (const l of qLines) { ctx.fillText(l, W/2, cy); cy += Q_LH }
-  cy += 68
-  ctx.fillStyle = 'rgba(212,175,55,.70)'; ctx.font = LBL_FONT
+  // ── Header acima da citação ──────────────────────────
+  const HDR_SZ    = 28
+  const HDR_GAP   = 48   // gap entre header e quote
+
+  // Truncar quote — máx 140 chars
+  const rawQ = quoteText.length > 140 ? quoteText.slice(0,137)+'…' : quoteText
+  const quoteFull = '\u201c' + rawQ + '\u201d'
+
+  // Fonte adaptativa: começa em 50px, reduz 3px até caber em ≤4 linhas
+  let qSz = 50
+  while (qSz > 28) {
+    ctx.font = `italic 400 ${qSz}px "Playfair Display", serif`
+    if (wrapTxt(ctx, quoteFull, MAX_W).length <= 4) break
+    qSz -= 3
+  }
+  ctx.font = `italic 400 ${qSz}px "Playfair Display", serif`
+  const qLines = wrapTxt(ctx, quoteFull, MAX_W)
+  const qLH    = Math.round(qSz * 1.55)
+
+  // Fonte adaptativa título: começa em 30px, reduz 2px até caber em ≤2 linhas
+  let tSz = 30
+  while (tSz > 20) {
+    ctx.font = `600 ${tSz}px "Playfair Display", serif`
+    if (wrapTxt(ctx, bookTitle, MAX_W-60).length <= 2) break
+    tSz -= 2
+  }
+  ctx.font = `600 ${tSz}px "Playfair Display", serif`
+  const tLines = wrapTxt(ctx, bookTitle, MAX_W-60)
+  const tLH    = Math.round(tSz * 1.55)
+
+  // Calcular altura total do bloco (incluindo header)
+  const LBL_SZ  = 26
+  const GAP_Q_D = 52   // quote → mini-div
+  const GAP_D_L = 36   // mini-div → label
+  const GAP_L_T = 28   // label → título
+  const BLOCK_H = HDR_SZ + HDR_GAP + qLines.length*qLH + GAP_Q_D + LBL_SZ + GAP_D_L + GAP_L_T + tLines.length*tLH
+
+  // Rodapé fixo: 180px do fundo
+  const FOOT_Y  = H - M - 170
+  const DIV2    = FOOT_Y - 100
+  const ZONE_H  = DIV2 - TXT_Y
+
+  // Centralizar verticalmente na zona — com clamp
+  let cy = TXT_Y + Math.max(0, Math.round((ZONE_H - BLOCK_H) / 2))
+
+  // ── Desenhar header ───────────────────────────────────
+  ctx.textAlign = 'center'
+  // Parte normal: "Li essa frase pelo "
+  const HDR_NORMAL = 'Li essa frase pelo '
+  const HDR_BOLD   = 'StepBook'
+  const HDR_END    = ' que me fez refletir'
+
+  ctx.font = `400 ${HDR_SZ}px "Playfair Display", serif`
+  const wNormal = ctx.measureText(HDR_NORMAL).width
+  const wBold   = (() => { ctx.font = `700 ${HDR_SZ}px "Playfair Display", serif`; return ctx.measureText(HDR_BOLD).width })()
+  const wEnd    = (() => { ctx.font = `400 ${HDR_SZ}px "Playfair Display", serif`; return ctx.measureText(HDR_END).width })()
+  const totalHdrW = wNormal + wBold + wEnd
+  let hx = W/2 - totalHdrW/2
+
+  cy += HDR_SZ  // baseline do header
+  ctx.fillStyle = 'rgba(255,255,255,0.55)'
+  ctx.font = `400 ${HDR_SZ}px "Playfair Display", serif`
+  ctx.textAlign = 'left'
+  ctx.fillText(HDR_NORMAL, hx, cy); hx += wNormal
+
+  ctx.fillStyle = '#D4AF37'
+  ctx.font = `700 ${HDR_SZ}px "Playfair Display", serif`
+  ctx.fillText(HDR_BOLD, hx, cy); hx += wBold
+
+  ctx.fillStyle = 'rgba(255,255,255,0.55)'
+  ctx.font = `400 ${HDR_SZ}px "Playfair Display", serif`
+  ctx.fillText(HDR_END, hx, cy)
+
+  cy += HDR_GAP
+
+  // Desenhar quote linha por linha
+  ctx.textAlign = 'center'
+  ctx.fillStyle = 'rgba(244,239,234,0.92)'
+  ctx.font = `italic 400 ${qSz}px "Playfair Display", serif`
+  for (const l of qLines) {
+    cy += qLH
+    ctx.fillText(l, W/2, cy)
+  }
+
+  // Mini divisor
+  cy += GAP_Q_D
+  pMiniDiv(ctx, W, cy)
+
+  // Label
+  cy += GAP_D_L
+  ctx.fillStyle = 'rgba(212,175,55,0.65)'
+  ctx.font = `italic 400 ${LBL_SZ}px "Playfair Display", serif`
   ctx.fillText('— Livro —', W/2, cy)
-  cy += 44
-  ctx.fillStyle = '#D4AF37'; ctx.font = T_FONT
-  for (const l of tLines) { ctx.fillText(l, W/2, cy); cy += T_LH }
+
+  // Título
+  cy += GAP_L_T
+  ctx.fillStyle = '#D4AF37'
+  ctx.font = `600 ${tSz}px "Playfair Display", serif`
+  for (const l of tLines) {
+    cy += tLH
+    ctx.fillText(l, W/2, cy)
+  }
+
+  // ── DIVISOR 2 ───────────────────────────────────────────
+  pDiv(ctx, W, DIV2)
+
+  // ── RODAPÉ ──────────────────────────────────────────────
+  ctx.fillStyle = 'rgba(255,255,255,0.50)'
+  ctx.font = '500 24px "DM Sans", sans-serif'
+  ctx.fillText('stepbook.vercel.app', W/2, DIV2 + 58)
+
+  ctx.fillStyle = 'rgba(212,175,55,0.40)'
+  ctx.font = 'italic 400 19px "Playfair Display", serif'
+  ctx.fillText('Leia. Questione. Domine.', W/2, DIV2 + 92)
 
   return canvas.toDataURL('image/png', 1.0)
 }
 
-function measureLines(ctx, text, maxW) {
+// Divisor ornamental com losango e pontos
+function pDiv(ctx, W, y) {
+  const cx = W/2, hw = 280
+  ;[[-hw,-35],[35,hw]].forEach(([a,b]) => {
+    const g = ctx.createLinearGradient(cx+a,0,cx+b,0)
+    g.addColorStop(0,'transparent'); g.addColorStop(1,'rgba(212,175,55,0.65)')
+    if (b > 0) { g.addColorStop(0,'rgba(212,175,55,0.65)'); g.addColorStop(1,'transparent') }
+    ctx.strokeStyle = g; ctx.lineWidth = 1
+    ctx.beginPath(); ctx.moveTo(cx+a,y); ctx.lineTo(cx+b,y); ctx.stroke()
+  })
+  const gl = ctx.createLinearGradient(cx-hw,0,cx-35,0)
+  gl.addColorStop(0,'transparent'); gl.addColorStop(1,'rgba(212,175,55,0.65)')
+  ctx.strokeStyle=gl; ctx.lineWidth=1
+  ctx.beginPath(); ctx.moveTo(cx-hw,y); ctx.lineTo(cx-35,y); ctx.stroke()
+  const gr = ctx.createLinearGradient(cx+35,0,cx+hw,0)
+  gr.addColorStop(0,'rgba(212,175,55,0.65)'); gr.addColorStop(1,'transparent')
+  ctx.strokeStyle=gr
+  ctx.beginPath(); ctx.moveTo(cx+35,y); ctx.lineTo(cx+hw,y); ctx.stroke()
+  ctx.fillStyle='#D4AF37'
+  ctx.save(); ctx.translate(cx,y); ctx.rotate(Math.PI/4); ctx.fillRect(-6,-6,12,12); ctx.restore()
+  ;[-22,22].forEach(o => { ctx.beginPath(); ctx.arc(cx+o,y,2.2,0,Math.PI*2); ctx.fillStyle='rgba(212,175,55,0.45)'; ctx.fill() })
+}
+
+// Mini divisor
+function pMiniDiv(ctx, W, y) {
+  const cx = W/2, hw = 120
+  const g = ctx.createLinearGradient(cx-hw,0,cx+hw,0)
+  g.addColorStop(0,'transparent'); g.addColorStop(0.4,'rgba(212,175,55,0.45)')
+  g.addColorStop(0.6,'rgba(212,175,55,0.45)'); g.addColorStop(1,'transparent')
+  ctx.strokeStyle=g; ctx.lineWidth=1
+  ctx.beginPath(); ctx.moveTo(cx-hw,y); ctx.lineTo(cx+hw,y); ctx.stroke()
+  ctx.beginPath(); ctx.arc(cx,y,2,0,Math.PI*2); ctx.fillStyle='rgba(212,175,55,0.55)'; ctx.fill()
+}
+
+// Word-wrap
+function wrapTxt(ctx, text, maxW) {
   const words = text.split(' '); const lines = []; let line = ''
   for (const w of words) {
     const test = line + w + ' '
@@ -557,6 +739,8 @@ function measureLines(ctx, text, maxW) {
   if (line.trim()) lines.push(line.trim())
   return lines
 }
+
+function measureLines(ctx, t, w) { return wrapTxt(ctx, t, w) }
 
 // ═══════════════════════════════════════════════════════
 // RENDER ENGINE
@@ -1278,16 +1462,19 @@ function showShareModal(mode) {
 function renderShareContent(mode, title) {
   const c = document.getElementById('share-content')
   if (mode === 'feed') {
-    c.innerHTML = `<canvas id="share-canvas-preview"></canvas>`
+    c.innerHTML = `<canvas id="share-canvas-preview" style="width:100%;border-radius:8px;border:1px solid var(--border2);margin-bottom:12px"></canvas>`
     shareCanvas = document.getElementById('share-canvas-preview')
     renderFeedCard(shareCanvas, title)
   } else {
+    // Canvas offscreen (tamanho real 1080x1920) — preview via <img>
     c.innerHTML = `
       <div style="display:flex;justify-content:center;margin-bottom:12px;position:relative">
-        <canvas id="share-canvas-preview" style="height:340px;border-radius:8px;border:1px solid var(--border2);aspect-ratio:9/16"></canvas>
-        <div id="canvas-loader" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(3,8,16,.7);border-radius:8px">
-          <div class="spinner"></div>
-          <p style="font-size:.75rem;color:var(--text2);margin-top:8px">Gerando card premium…</p>
+        <div id="stories-preview-wrap" style="position:relative;width:191px;height:340px;border-radius:8px;border:1px solid var(--border2);overflow:hidden;background:#04080f">
+          <img id="stories-preview-img" style="width:100%;height:100%;object-fit:cover;display:none" />
+          <div id="canvas-loader" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(3,8,16,.9);border-radius:8px">
+            <div class="spinner"></div>
+            <p style="font-size:.75rem;color:var(--text2);margin-top:8px">Gerando card premium…</p>
+          </div>
         </div>
       </div>
       ${S.quoteText ? `<p style="font-size:.82rem;color:var(--gold);font-style:italic;margin-bottom:8px">"${S.quoteText.slice(0,100)}${S.quoteText.length>100?'…':''}"</p>` : ''}
@@ -1296,16 +1483,27 @@ function renderShareContent(mode, title) {
         <button class="btn btn-ghost btn-sm" id="copy-share-msg">Copiar</button>
       </div>
     `
-    shareCanvas = document.getElementById('share-canvas-preview')
+
+    // Canvas offscreen — tamanho real, sem distorção
+    shareCanvas = document.createElement('canvas')
     const quoteText = S.quoteText || `${S.progress}% do livro lido com leitura ativa pelo StepBook.`
+
     generatePremiumCard(shareCanvas, quoteText, title).then(() => {
-      document.getElementById('canvas-loader').style.display = 'none'
-      const sb = document.getElementById('share-box')
-      if (sb) sb.style.display = 'flex'
+      // Mostrar como imagem no preview
+      const img    = document.getElementById('stories-preview-img')
+      const loader = document.getElementById('canvas-loader')
+      const sb     = document.getElementById('share-box')
+      if (img) {
+        img.src     = shareCanvas.toDataURL('image/jpeg', 0.85)
+        img.style.display = 'block'
+      }
+      if (loader) loader.style.display = 'none'
+      if (sb)     sb.style.display = 'flex'
     }).catch(() => {
       const loader = document.getElementById('canvas-loader')
       if (loader) loader.innerHTML = '<p style="color:var(--red);font-size:.8rem">Erro ao gerar card.</p>'
     })
+
     document.getElementById('copy-share-msg')?.addEventListener('click', async () => {
       await navigator.clipboard.writeText('Baixe o StepBook.vercel.app').catch(() => {})
       toast('Copiado!')
