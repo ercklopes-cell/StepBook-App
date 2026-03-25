@@ -376,31 +376,45 @@ function detectChapters(pages) {
   ]
   const chapters = []
   for (const page of pages) {
-    const first = page.text.split(/\n/)[0].trim()
+    const first = page.text.split(/[\n.]/)[0].trim().slice(0, 100)
     for (const re of patterns) {
-      if (re.test(first)) { chapters.push({ title: first.slice(0,80), pageNum: page.num, locked: false }); break }
+      if (re.test(first)) {
+        chapters.push({ title: first.slice(0, 80), pageNum: page.num, locked: false })
+        break
+      }
     }
   }
   if (chapters.length < 2) {
-    const step = Math.floor(pages.length / 8)
-    return Array.from({ length: 8 }, (_, i) => ({ title: `Seção ${i+1}`, pageNum: pages[i*step]?.num ?? 1, locked: i%2 !== 0 }))
+    // Fallback: seções iguais — cap 1 livre, depois alterna
+    const count = Math.min(8, Math.max(4, Math.floor(pages.length / 10)))
+    const step  = Math.floor(pages.length / count)
+    return Array.from({ length: count }, (_, i) => ({
+      title:   `Seção ${i + 1}`,
+      pageNum: pages[i * step]?.num ?? 1,
+      locked:  i > 0 && i % 2 !== 0,  // cap 1 livre, alterna a partir do 2
+    }))
   }
-  return chapters.map((c, i) => ({ ...c, locked: i%2 !== 0 }))
+  // Cap 1 sempre livre. A partir do 2º, capítulos ímpares (2º, 4º...) são bloqueados
+  return chapters.map((c, i) => ({ ...c, locked: i > 0 && i % 2 !== 0 }))
 }
 
 function injectAutoMCQ(questions, total) {
+  // Só injeta checkpoints onde não há perguntas próximas
   const pts = [
-    { idx: Math.floor(total*.25), label:'25%' },
-    { idx: Math.round(total*.50), label:'50%' },
-    { idx: Math.round(total*.75), label:'75%' },
-    { idx: total-1,               label:'100%' },
+    { idx: Math.floor(total*.25), label:'25%', hint:'na primeira parte do livro' },
+    { idx: Math.round(total*.50), label:'50%', hint:'na metade do livro' },
+    { idx: Math.round(total*.75), label:'75%', hint:'nos três quartos do livro' },
+    { idx: total-1,               label:'100%', hint:'ao final do livro' },
   ]
   for (const pt of pts) {
-    if (!questions.some(q => Math.abs(q.beforePage - pt.idx) <= 3)) {
+    if (!questions.some(q => Math.abs(q.beforePage - pt.idx) <= 5)) {
       questions.push({
-        beforePage: pt.idx, qtype:'mcq', type:'Quiz',
-        question: `Checkpoint ${pt.label}: Qual das afirmações melhor resume o que você leu até aqui?`,
-        options: ['Faz um bom resumo do conteúdo lido','Não representa bem o que foi lido'],
+        beforePage: pt.idx, qtype:'mcq', type:'Checkpoint',
+        question: `Pausa ${pt.label} — Você chegou ${pt.hint}. Qual afirmação melhor representa sua experiência com a leitura até aqui?`,
+        options: [
+          'Estou compreendendo bem o conteúdo e consigo relacioná-lo à minha vida',
+          'Estou lendo mas ainda não conectei as ideias com clareza'
+        ],
         correct: 0, answered: false, answer: null, quality: null, _auto: true,
       })
     }
@@ -463,19 +477,36 @@ async function cleanTextAI(pages, title) {
   return cleaned
 }
 
-async function makeQuestionsAI(pages, title, chapters) {
-  const sample = pages.slice(0, Math.min(pages.length, 60))
-  const text   = sample.map(p => `[PAGE ${p.num}]\n${p.text}`).join('\n\n')
-  const chaps  = chapters.map(c => `${c.title} (pág ${c.pageNum})`).join(', ')
-  try {
-    const result = await callAI('makeQuestions', { text, title, chapters: chaps })
-    const parsed = typeof result === 'string' ? JSON.parse(result) : result
-    return Array.isArray(parsed) ? parsed : []
-  } catch { return [] }
+async function makeQuestionsAI(pages, title, chapters, description) {
+  description = description || ''
+  const allQuestions = []
+  const chapsLabel = chapters.map(c => `${c.title} (pág ${c.pageNum})`).join(', ')
+
+  for (let ci = 0; ci < chapters.length; ci++) {
+    const ch     = chapters[ci]
+    const nextCh = chapters[ci + 1]
+    const chapPages = pages.filter(p =>
+      p.num >= ch.pageNum && (!nextCh || p.num < nextCh.pageNum)
+    ).slice(0, 15)
+    if (!chapPages.length) continue
+    const text = chapPages.map(p => `[PAGE ${p.num}]\n${p.text}`).join('\n\n')
+    try {
+      const result = await Promise.race([
+        callAI('makeQuestions', {
+          text, title, chapters: chapsLabel, description,
+          currentChapter: ch.title, chapterIndex: ci
+        }),
+        new Promise((_,r) => setTimeout(() => r(new Error('timeout')), 25000))
+      ])
+      const parsed = typeof result === 'string' ? JSON.parse(result) : result
+      if (Array.isArray(parsed)) allQuestions.push(...parsed)
+    } catch {}
+  }
+  return allQuestions
 }
 
-async function evalAnswerAI(question, answer, context) {
-  const result = await callAI('evalAnswer', { question, answer, context })
+async function evalAnswerAI(question, answer, context, bookTitle) {
+  const result = await callAI('evalAnswer', { question, answer, context, bookTitle })
   const parsed = typeof result === 'string' ? JSON.parse(result) : result
   return parsed
 }
@@ -485,16 +516,29 @@ async function evalAnswerAI(question, answer, context) {
 // ═══════════════════════════════════════════════════════
 function isPageLocked(pageNum) {
   if (!S.currentBook) return false
-  for (const ch of (S.currentBook.chapters || [])) {
+  const chapters = S.currentBook.chapters || []
+
+  // Para cada capítulo trancado, verificar se a porta foi aberta
+  for (const ch of chapters) {
     if (!ch.locked) continue
-    if (pageNum >= ch.pageNum) {
-      const gate = S.questions.find(q => q.beforePage >= ch.pageNum-1 && q.beforePage <= ch.pageNum+1)
-      if (gate && gate.quality === 'good') continue
-      if (gate && gate.quality !== 'good') {
-        const next = (S.currentBook.chapters||[]).find(c => !c.locked && c.pageNum > ch.pageNum)
-        if (!next || pageNum < next.pageNum) return true
-      }
-    }
+    if (pageNum < ch.pageNum) continue // página antes do capítulo trancado — ok
+
+    // Encontrar qualquer pergunta gate para este capítulo (janela generosa)
+    const gate = S.questions.find(q =>
+      q.beforePage >= ch.pageNum - 3 &&
+      q.beforePage <= ch.pageNum + 3
+    )
+
+    // Sem pergunta gate — capítulo desbloqueado por padrão
+    if (!gate) continue
+
+    // Pergunta respondida corretamente — capítulo livre
+    if (gate.quality === 'good') continue
+
+    // Verificar se página pertence a ESTE capítulo trancado
+    const nextChIdx = chapters.findIndex(c => c.pageNum > ch.pageNum)
+    const nextChPage = nextChIdx !== -1 ? chapters[nextChIdx].pageNum : Infinity
+    if (pageNum < nextChPage) return true
   }
   return false
 }
@@ -1053,8 +1097,8 @@ async function runImport(file) {
     let questions = []
     try {
       const generated = await Promise.race([
-        makeQuestionsAI(cleanPages, meta.title||rawTitle, chapters),
-        new Promise((_,r) => setTimeout(() => r(new Error('timeout')), 45000))
+        makeQuestionsAI(cleanPages, meta.title||rawTitle, chapters, meta.description||''),
+        new Promise((_,r) => setTimeout(() => r(new Error('timeout')), 60000))
       ])
       if (generated?.length) questions = generated
     } catch {}
@@ -1242,14 +1286,16 @@ function renderReaderPages() {
 
 function renderQBlock(q) {
   if (q.quality === 'good') {
-    return `<div class="q-block" data-qi="${q._qi}">
+    return `<div class="q-block" data-qi="${q._qi}" style="border-left-color:var(--green)">
       <div class="q-block-header"><div class="q-dot" style="background:var(--green)"></div><span class="q-badge" style="color:var(--green)">${q.type||'Quiz'}</span></div>
       <p class="q-question">${escHtml(q.question)}</p>
-      <div class="q-status-good"><span>✓</span> Gate liberado · Próximo capítulo desbloqueado</div>
+      ${q.feedback ? `<p style="font-size:.82rem;color:rgba(255,255,255,.45);font-style:italic;margin-bottom:10px">"${escHtml(q.feedback)}"</p>` : ''}
+      <div class="q-status-good"><span>✓</span> Ótima reflexão! Próximo capítulo desbloqueado 🔓</div>
     </div>`
   }
 
   if (q.qtype === 'mcq') {
+    const letters = ['A','B','C','D']
     const opts = (q.options||[]).map((opt,i) => {
       let cls = 'mcq-option'
       if (q.answered) {
@@ -1257,16 +1303,19 @@ function renderQBlock(q) {
         else if (i === q.selectedOpt) cls += ' wrong'
       } else if (i === q.selectedOpt) cls += ' selected'
       return `<button class="${cls}" data-qi="${q._qi}" data-oi="${i}" ${q.answered?'disabled':''}>
-        <span class="opt-letter">${i===0?'A':'B'}</span>${escHtml(opt)}
+        <span class="opt-letter">${letters[i]||i}</span>${escHtml(opt)}
       </button>`
     }).join('')
-
-    return `<div class="q-block" data-qi="${q._qi}">
-      <div class="q-block-header"><div class="q-dot"></div><span class="q-badge">Quiz</span></div>
+    const isCheckpoint = q.type === 'Checkpoint'
+    const badge = isCheckpoint ? '⏸ Checkpoint' : '🎯 Quiz'
+    const chHint = q.chapterTitle ? `<span style="font-size:.70rem;color:var(--text3);display:block;margin-bottom:10px">📖 ${escHtml(q.chapterTitle)}</span>` : ''
+    return `<div class="q-block" data-qi="${q._qi}" style="${isCheckpoint?'border-left-color:var(--gold2)':''}">
+      <div class="q-block-header"><div class="q-dot"></div><span class="q-badge">${badge}</span></div>
+      ${chHint}
       <p class="q-question">${escHtml(q.question)}</p>
       <div class="mcq-options">${opts}</div>
       ${!q.answered ? `<button class="btn btn-gold btn-sm mcq-confirm" data-qi="${q._qi}" ${q.selectedOpt===undefined||q.selectedOpt===null?'disabled':''}>Confirmar resposta</button>` : ''}
-      ${q.answered && q.quality==='retry' ? `<div class="q-status-retry">Resposta incorreta. Revise o capítulo e tente novamente.</div>
+      ${q.answered && q.quality==='retry' ? `<div class="q-status-retry">Quase lá! Releia o capítulo e tente responder com mais detalhes. Você consegue! 💪</div>
         <button class="btn btn-ghost btn-sm mcq-retry" data-qi="${q._qi}">Tentar novamente</button>` : ''}
     </div>`
   }
@@ -1274,13 +1323,15 @@ function renderQBlock(q) {
   // Text answer
   return `<div class="q-block" data-qi="${q._qi}">
     <div class="q-block-header"><div class="q-dot"></div><span class="q-badge">Reflexão</span></div>
+    ${q.chapterTitle ? `<span style="font-size:.70rem;color:var(--text3);letter-spacing:.08em;text-transform:uppercase;display:block;margin-bottom:10px">📖 ${escHtml(q.chapterTitle)}</span>` : ''}
     <p class="q-question">${escHtml(q.question)}</p>
-    ${q.answered && q.quality==='close' ? `<div class="q-status-close">💡 ${escHtml(q.feedback||'Boa tentativa! Aprofunde um pouco mais sua resposta.')}</div>` : ''}
-    ${q.answered && q.quality==='retry' ? `<div class="q-status-retry">⚠️ ${escHtml(q.feedback||'Resposta muito superficial. Revise e tente novamente.')}</div>` : ''}
-    <textarea class="input q-textarea" data-qi="${q._qi}" placeholder="Escreva sua reflexão aqui…" rows="4" style="margin-bottom:12px">${escHtml(q.answer||'')}</textarea>
-    <div style="display:flex;gap:10px;align-items:center">
-      <button class="btn btn-gold btn-sm q-submit" data-qi="${q._qi}">Enviar resposta</button>
-      ${q.answered ? `<button class="btn btn-ghost btn-sm q-retry-text" data-qi="${q._qi}">Tentar novamente</button>` : ''}
+    ${q.answered && q.quality==='close' ? `<div class="q-status-close">💡 ${escHtml(q.feedback||'Boa reflexão! Tente aprofundar um pouco mais.')}</div>` : ''}
+    ${q.answered && q.quality==='retry' ? `<div class="q-status-retry">🔄 ${escHtml(q.feedback||'Tente conectar mais com o conteúdo do capítulo.')}</div>` : ''}
+    <textarea class="input q-textarea" data-qi="${q._qi}" placeholder="Escreva com suas próprias palavras o que compreendeu…" rows="4" style="margin-bottom:12px">${escHtml(q.answer||'')}</textarea>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <button class="btn btn-gold btn-sm q-submit" data-qi="${q._qi}">Enviar reflexão →</button>
+      ${q.answered ? `<button class="btn btn-ghost btn-sm q-retry-text" data-qi="${q._qi}">Reescrever</button>` : ''}
+      <span style="font-size:.72rem;color:var(--text3);margin-left:auto">mín. 20 chars</span>
     </div>
   </div>`
 }
@@ -1321,12 +1372,12 @@ function bindQBlocks() {
       const q    = S.questions[qi]
       const ta   = document.querySelector(`.q-textarea[data-qi="${qi}"]`)
       const text = ta?.value?.trim() || ''
-      if (text.length < 20) { toast('Escreva pelo menos 20 caracteres.'); return }
+      if (text.length < 20) { toast('Escreva pelo menos algumas palavras para sua reflexão 😊'); return }
       btn.disabled = true
       btn.innerHTML = '<span class="spinner" style="width:14px;height:14px;border-width:2px"></span> Avaliando…'
       try {
         const page   = S.pages.find(p => p.num === (q.beforePage||1))
-        const result = await evalAnswerAI(q.question, text, page?.text||'')
+        const result = await evalAnswerAI(q.question, text, page?.text||'', S.currentBook?.title||'')
         const score  = result?.score ?? 0
         const quality = score >= 70 ? 'good' : score >= 40 ? 'close' : 'retry'
         patchQuestion(qi, { answered: true, answer: text, quality, feedback: result?.feedback })
