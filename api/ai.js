@@ -14,8 +14,14 @@ Livro: "${title}"
 Texto extraído (pode conter artefatos, quebras erradas, hifenizações incorretas):
 ${text}
 
-Corrija APENAS os artefatos técnicos do PDF (hifenizações, quebras de linha erradas, caracteres estranhos).
-NÃO altere o conteúdo ou significado do texto.
+Problemas comuns que você DEVE corrigir:
+1. Hifenização com espaços: "co n -" → "con", "qua n -" → "quan", "rea l -" → "real", "adu l -" → "adul"
+   - Padrão: letra(s) ESPAÇO letra(s) HÍFEN → juntar tudo removendo espaços e hífen
+2. Palavras quebradas entre linhas: "co-\nnhecer" → "conhecer"
+3. Caracteres estranhos e artefatos de OCR
+4. Quebras de linha desnecessárias no meio de frases
+
+NÃO altere o conteúdo, significado ou estrutura do texto.
 
 Retorne SOMENTE um array JSON válido, sem nenhum texto adicional:
 [{"num": N, "text": "texto corrigido"}]`,

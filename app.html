@@ -449,6 +449,23 @@ function cleanTitle(t='') {
   return t.replace(/[-_]/g,' ').replace(/\.(pdf|txt)$/i,'').replace(/\s+/g,' ').trim()
 }
 
+// Limpeza local de artefatos de PDF — roda ANTES da IA, sem timeout
+function cleanTextLocal(pages) {
+  return pages.map(p => ({
+    ...p,
+    text: p.text
+      // Remove hifenização com espaços: "co n -" → "con", "rea l -" → "real"
+      .replace(/(\w)\s+(\w)\s*-\s*/g, '$1$2')
+      // Remove hífen no fim de linha seguido de palavra
+      .replace(/-\n(\w)/g, '$1')
+      // Remove quebras de linha no meio de frases (mantém parágrafo duplo)
+      .replace(/([a-záàâãéèêíïóôõöúüçñ,;])\n([a-záàâãéèêíïóôõöúüçñ])/gi, '$1 $2')
+      // Remove espaços múltiplos
+      .replace(/  +/g, ' ')
+      .trim()
+  }))
+}
+
 // ═══════════════════════════════════════════════════════
 // AI
 // ═══════════════════════════════════════════════════════
@@ -1081,12 +1098,12 @@ async function runImport(file) {
     S.importStep = 2; updateImportStep()
     const chapters = detectChapters(pages)
 
-    // Step 3
+    // Step 3 — limpeza local primeiro, depois IA
     S.importStep = 3; updateImportStep()
-    let cleanPages = pages
+    let cleanPages = cleanTextLocal(pages)  // limpeza regex instantânea
     try {
       const cleaned = await Promise.race([
-        cleanTextAI(pages, meta.title||rawTitle),
+        cleanTextAI(cleanPages, meta.title||rawTitle),
         new Promise((_,r) => setTimeout(() => r(new Error('timeout')), 30000))
       ])
       if (cleaned?.length) cleanPages = cleaned
@@ -1691,8 +1708,9 @@ function showReflPrompt() {
 
 // ── PAYWALL MODAL ─────────────────────────────────────
 function showPaywall() {
-  const el = document.getElementById('paywall-modal') || document.body
-  el.innerHTML = `<div class="overlay center" id="pw-overlay">
+  const overlay = document.createElement('div')
+  overlay.id = 'pw-root'
+  overlay.innerHTML = `<div class="overlay center" id="pw-overlay">
     <div class="modal" style="max-width:420px">
       <div style="text-align:center;margin-bottom:24px">
         <span style="font-size:2.5rem">⭐</span>
@@ -1713,9 +1731,11 @@ function showPaywall() {
       <button class="btn btn-ghost btn-sm" id="pw-close" style="width:100%;margin-top:8px">Fechar</button>
     </div>
   </div>`
+  document.body.appendChild(overlay)
 
-  document.getElementById('pw-overlay').addEventListener('click', e => { if(e.target===e.currentTarget) el.innerHTML='' })
-  document.getElementById('pw-close').addEventListener('click', () => el.innerHTML = '')
+  const close = () => overlay.remove()
+  document.getElementById('pw-overlay').addEventListener('click', e => { if(e.target===e.currentTarget) close() })
+  document.getElementById('pw-close').addEventListener('click', close)
   document.getElementById('pw-key').addEventListener('keydown', e => { if(e.key==='Enter') document.getElementById('pw-activate').click() })
   document.getElementById('pw-activate').addEventListener('click', async () => {
     const key = document.getElementById('pw-key').value
@@ -1723,15 +1743,17 @@ function showPaywall() {
     btn.disabled = true; btn.textContent = '…'
     const { ok, msg } = await activateKey(key)
     toast(msg)
-    if (ok) { el.innerHTML = ''; render('library') }
+    if (ok) { close(); render('library') }
     else { btn.disabled = false; btn.textContent = 'Ativar' }
   })
 }
 
 // ── DELETE MODAL ──────────────────────────────────────
 function showDeleteModal(bookId, bookTitle) {
-  const el = document.getElementById('delete-modal') || document.body
-  el.innerHTML = `<div class="overlay center" id="del-overlay">
+  // Usar document.body para garantir que o modal não seja destruído pelo render()
+  const overlay = document.createElement('div')
+  overlay.id = 'del-overlay-root'
+  overlay.innerHTML = `<div class="overlay center" id="del-overlay">
     <div class="modal" style="max-width:380px">
       <h3 class="modal-title">Remover livro?</h3>
       <p class="modal-sub">Isso removerá <strong>"${escHtml(bookTitle)}"</strong> da sua biblioteca. Esta ação não pode ser desfeita.</p>
@@ -1741,14 +1763,20 @@ function showDeleteModal(bookId, bookTitle) {
       </div>
     </div>
   </div>`
+  document.body.appendChild(overlay)
 
-  document.getElementById('del-overlay').addEventListener('click', e => { if(e.target===e.currentTarget) el.innerHTML='' })
-  document.getElementById('del-cancel').addEventListener('click', () => el.innerHTML = '')
+  const close = () => overlay.remove()
+
+  document.getElementById('del-overlay').addEventListener('click', e => { if(e.target===e.currentTarget) close() })
+  document.getElementById('del-cancel').addEventListener('click', close)
   document.getElementById('del-confirm').addEventListener('click', async () => {
-    el.innerHTML = ''
-    await deleteBook(bookId)
-    toast('Livro removido.')
-    render('library')
+    close()
+    try {
+      await deleteBook(bookId)
+      toast('Livro removido.')
+      await loadBooks()
+      render('library')
+    } catch { toast('Erro ao remover livro.') }
   })
 }
 
