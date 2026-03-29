@@ -399,7 +399,6 @@ function detectChapters(pages) {
 }
 
 function injectAutoMCQ(questions, total) {
-  // Só injeta checkpoints onde não há perguntas próximas
   const pts = [
     { idx: Math.floor(total*.25), label:'25%', hint:'na primeira parte do livro' },
     { idx: Math.round(total*.50), label:'50%', hint:'na metade do livro' },
@@ -407,9 +406,13 @@ function injectAutoMCQ(questions, total) {
     { idx: total-1,               label:'100%', hint:'ao final do livro' },
   ]
   for (const pt of pts) {
-    if (!questions.some(q => Math.abs(q.beforePage - pt.idx) <= 5)) {
+    // Não injeta se já há pergunta no raio de 8 páginas
+    if (!questions.some(q => Math.abs(q.beforePage - pt.idx) <= 8)) {
+      // Garante que o beforePage não coincide com nenhuma pergunta existente
+      let bPage = pt.idx
+      while (questions.some(q => q.beforePage === bPage)) bPage++
       questions.push({
-        beforePage: pt.idx, qtype:'mcq', type:'Checkpoint',
+        beforePage: bPage, qtype:'mcq', type:'Checkpoint',
         question: `Pausa ${pt.label} — Você chegou ${pt.hint}. Qual afirmação melhor representa sua experiência com a leitura até aqui?`,
         options: [
           'Estou compreendendo bem o conteúdo e consigo relacioná-lo à minha vida',
@@ -419,7 +422,15 @@ function injectAutoMCQ(questions, total) {
       })
     }
   }
-  return questions.sort((a,b) => a.beforePage - b.beforePage)
+
+  // Deduplicar: se duas perguntas têm mesmo beforePage, deslocar a segunda
+  const sorted = questions.sort((a,b) => a.beforePage - b.beforePage)
+  for (let i = 1; i < sorted.length; i++) {
+    if (sorted[i].beforePage <= sorted[i-1].beforePage) {
+      sorted[i].beforePage = sorted[i-1].beforePage + 1
+    }
+  }
+  return sorted
 }
 
 async function fetchBookMeta(title) {
@@ -540,10 +551,10 @@ function isPageLocked(pageNum) {
     if (!ch.locked) continue
     if (pageNum < ch.pageNum) continue // página antes do capítulo trancado — ok
 
-    // Encontrar qualquer pergunta gate para este capítulo (janela generosa)
+    // Encontrar pergunta gate próxima ao início do capítulo (janela ampla)
     const gate = S.questions.find(q =>
-      q.beforePage >= ch.pageNum - 3 &&
-      q.beforePage <= ch.pageNum + 3
+      q.beforePage >= ch.pageNum - 10 &&
+      q.beforePage <= ch.pageNum + 5
     )
 
     // Sem pergunta gate — capítulo desbloqueado por padrão
@@ -1324,7 +1335,11 @@ function renderReaderPages() {
 
   container.innerHTML = S.pages.map(page => {
     const locked = isPageLocked(page.num)
-    const pageQs = S.questions.map((q,qi) => ({...q,_qi:qi})).filter(q => q.beforePage === page.num || q.beforePage === page.num-1)
+    // Cada pergunta aparece SOMENTE na página exata do beforePage
+    // Sem || page.num-1 que causava duplicatas
+    const pageQs = S.questions
+      .map((q,qi) => ({...q,_qi:qi}))
+      .filter(q => q.beforePage === page.num)
     return `<div id="page-${page.num}">
       <div class="reader-page-label">— pág. ${page.num} —</div>
       <div class="reader-page-text ${locked?'locked-blur':''}">${escHtml(page.text)}</div>
