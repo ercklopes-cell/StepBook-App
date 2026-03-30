@@ -572,8 +572,226 @@ function isPageLocked(pageNum) {
 }
 
 // ═══════════════════════════════════════════════════════
-// CANVAS — SHARE CARD PREMIUM (canvas do zero)
+// GAMIFICAÇÃO — SCORE DE COMPREENSÃO
 // ═══════════════════════════════════════════════════════
+
+// Calcula o score de domínio do livro (0–100)
+// Baseado nas respostas às perguntas dentro do percentual lido
+function calcDomainScore(questions, reflections, progress) {
+  if (!questions || questions.length === 0) return 0
+
+  // Só conta perguntas que deveriam ter aparecido até o progresso atual
+  const totalPages    = S.currentBook?.total_pages || 1
+  const currentPage   = Math.round((progress / 100) * totalPages)
+  const visible       = questions.filter(q => q.beforePage <= currentPage)
+  if (visible.length === 0) return 0
+
+  let earned = 0
+  let total  = 0
+
+  for (const q of visible) {
+    if (q.qtype === 'mcq' || q.type === 'Checkpoint') {
+      // MCQ / Checkpoint: peso 1 — correto = 1pt, errado = 0pt
+      total += 1
+      if (q.quality === 'good') earned += 1
+    } else {
+      // Reflexão aberta: peso 2 (mais importante)
+      total += 2
+      if (q.quality === 'good')  earned += 2
+      else if (q.quality === 'close') earned += 1  // parcial
+    }
+  }
+
+  // Reflexões de marcos (60% e 100%) — bônus
+  const goodReflections = (reflections || []).filter(r => r._milestone && r.quality === 'good')
+  total  += goodReflections.length * 1
+  earned += goodReflections.length * 1
+
+  const raw = total > 0 ? Math.round((earned / total) * 100) : 0
+  return Math.min(100, raw)
+}
+
+// Nível baseado no score
+function getDomainLevel(score) {
+  if (score >= 85) return { label: 'Mestre do Conteúdo',   emoji: '🏆', color: '#f5c842' }
+  if (score >= 70) return { label: 'Analista de Ideias',   emoji: '🎯', color: '#D4AF37' }
+  if (score >= 50) return { label: 'Leitor Crítico',       emoji: '🔍', color: '#3aaa72' }
+  if (score >= 30) return { label: 'Leitor Ativo',         emoji: '📖', color: '#6ab0de' }
+  return              { label: 'Leitor Iniciante',         emoji: '🌱', color: 'rgba(255,255,255,.5)' }
+}
+
+// Atualiza o widget de score no reader
+function updateScoreWidget() {
+  const el = document.getElementById('score-widget')
+  if (!el || !S.currentBook) return
+  const score = calcDomainScore(S.questions, S.currentBook.reflections, S.progress)
+  const lvl   = getDomainLevel(score)
+  el.innerHTML = renderScoreWidget(score, lvl)
+}
+
+function renderScoreWidget(score, lvl) {
+  const r = 22, circ = 2 * Math.PI * r
+  const dash = (score / 100) * circ
+  return `
+    <div style="display:flex;align-items:center;gap:8px;cursor:default" title="${lvl.label} — ${score}% de compreensão">
+      <svg width="54" height="54" viewBox="0 0 54 54">
+        <circle cx="27" cy="27" r="${r}" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="4"/>
+        <circle cx="27" cy="27" r="${r}" fill="none" stroke="${lvl.color}" stroke-width="4"
+          stroke-dasharray="${dash} ${circ}" stroke-dashoffset="${circ/4}"
+          stroke-linecap="round" style="transition:stroke-dasharray .8s cubic-bezier(.16,1,.3,1)"/>
+        <text x="27" y="32" text-anchor="middle" font-size="13" font-weight="700"
+          font-family="'DM Sans',sans-serif" fill="${lvl.color}">${score}%</text>
+      </svg>
+      <div style="line-height:1.3">
+        <div style="font-size:.62rem;color:rgba(255,255,255,.4);letter-spacing:.1em;text-transform:uppercase">Domínio</div>
+        <div style="font-size:.72rem;font-weight:600;color:${lvl.color}">${lvl.emoji} ${lvl.label}</div>
+      </div>
+    </div>`
+}
+
+// Mostra tela de resultado final quando livro é completado (100%)
+function showCompletionScreen() {
+  const book  = S.currentBook
+  if (!book) return
+  const score = calcDomainScore(S.questions, book.reflections, 100)
+  const lvl   = getDomainLevel(score)
+  const r     = 70, circ = 2 * Math.PI * r
+  const dash  = (score / 100) * circ
+
+  const overlay = document.createElement('div')
+  overlay.id = 'completion-overlay'
+  overlay.innerHTML = `
+    <div class="overlay center" id="completion-bg">
+      <div class="modal" style="max-width:420px;text-align:center;padding:40px 32px">
+
+        <!-- Anel SVG grande -->
+        <div style="display:flex;justify-content:center;margin-bottom:24px">
+          <svg width="180" height="180" viewBox="0 0 180 180">
+            <defs>
+              <linearGradient id="scoreGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="#D4AF37"/>
+                <stop offset="100%" stop-color="#f5c842"/>
+              </linearGradient>
+            </defs>
+            <circle cx="90" cy="90" r="${r}" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="10"/>
+            <circle cx="90" cy="90" r="${r}" fill="none" stroke="url(#scoreGrad)" stroke-width="10"
+              stroke-dasharray="0 ${circ}" stroke-dashoffset="${circ/4}" stroke-linecap="round"
+              id="score-ring-anim" style="transition:stroke-dasharray 1.8s cubic-bezier(.16,1,.3,1)"/>
+            <text x="90" y="82" text-anchor="middle" font-size="42" font-weight="700"
+              font-family="'Playfair Display',serif" fill="#D4AF37" id="score-num-anim">0</text>
+            <text x="90" y="104" text-anchor="middle" font-size="13"
+              font-family="'DM Sans',sans-serif" fill="rgba(255,255,255,.45)">compreensão</text>
+          </svg>
+        </div>
+
+        <div style="font-size:2rem;margin-bottom:8px">${lvl.emoji}</div>
+        <h2 style="font-family:'Playfair Display',serif;font-size:1.5rem;color:var(--gold);margin-bottom:8px">
+          ${lvl.label}
+        </h2>
+        <p style="font-size:.92rem;color:var(--text2);line-height:1.6;margin-bottom:6px">
+          Você alcançou <strong style="color:var(--gold)">${score}% de compreensão</strong> em<br/>
+          <em>"${escHtml(book.title)}"</em>
+        </p>
+
+        <div style="margin:20px 0;padding:16px;background:var(--gold-dim);border:1px solid var(--border2);border-radius:var(--radius);font-size:.82rem;color:var(--text2);line-height:1.7">
+          ${getScoreMessage(score)}
+        </div>
+
+        <!-- Detalhamento -->
+        ${renderScoreBreakdown(S.questions, book.reflections)}
+
+        <div style="display:flex;gap:10px;margin-top:20px">
+          <button class="btn btn-ghost" id="comp-share" style="flex:1">📊 Compartilhar</button>
+          <button class="btn btn-gold" id="comp-close" style="flex:1">✓ Concluir</button>
+        </div>
+      </div>
+    </div>`
+  document.body.appendChild(overlay)
+
+  // Animar anel
+  setTimeout(() => {
+    const ring = document.getElementById('score-ring-anim')
+    if (ring) ring.setAttribute('stroke-dasharray', `${dash} ${circ}`)
+    // Animar número
+    const numEl = document.getElementById('score-num-anim')
+    if (numEl) {
+      let cur = 0
+      const step = () => {
+        cur = Math.min(cur + Math.ceil(score / 40), score)
+        numEl.textContent = cur + '%'
+        if (cur < score) requestAnimationFrame(step)
+      }
+      requestAnimationFrame(step)
+    }
+  }, 100)
+
+  document.getElementById('completion-bg').addEventListener('click', e => {
+    if (e.target === e.currentTarget) overlay.remove()
+  })
+  document.getElementById('comp-close').addEventListener('click', () => overlay.remove())
+  document.getElementById('comp-share').addEventListener('click', () => {
+    overlay.remove()
+    S.quoteText = `Terminei "${book.title}" com ${score}% de compreensão no StepBook!`
+    showShareModal('feed')
+  })
+}
+
+function getScoreMessage(score) {
+  if (score >= 85) return '🏆 Excelente! Você demonstrou domínio profundo do conteúdo. Suas reflexões mostraram conexão genuína com as ideias do livro.'
+  if (score >= 70) return '🎯 Muito bom! Você compreendeu as ideias centrais e as conectou com reflexões próprias. Continue assim!'
+  if (score >= 50) return '🔍 Bom progresso! Você captou os pontos principais. Releia os capítulos onde errou para consolidar o aprendizado.'
+  if (score >= 30) return '📖 Você deu o primeiro passo! Na próxima leitura, tente responder as perguntas com mais detalhes e exemplos do próprio texto.'
+  return '🌱 Cada leitura é uma oportunidade de crescimento. Tente reler com mais atenção às ideias principais.'
+}
+
+function renderScoreBreakdown(questions, reflections) {
+  const total   = questions?.length || 0
+  const good    = questions?.filter(q => q.quality === 'good').length || 0
+  const partial = questions?.filter(q => q.quality === 'close').length || 0
+  const refls   = reflections?.filter(r => r._milestone).length || 0
+
+  if (total === 0) return ''
+  return `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:4px">
+    ${[
+      ['✅', good,    'Completas'],
+      ['💡', partial, 'Parciais'],
+      ['📝', refls,   'Reflexões'],
+    ].map(([icon, val, lbl]) => `
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:10px 6px;text-align:center">
+        <div style="font-size:1.2rem">${icon}</div>
+        <div style="font-size:1.1rem;font-weight:700;color:var(--gold)">${val}</div>
+        <div style="font-size:.65rem;color:var(--text3);text-transform:uppercase;letter-spacing:.08em">${lbl}</div>
+      </div>`).join('')}
+  </div>`
+}
+
+function showScoreDetails() {
+  if (!S.currentBook) return
+  const score = calcDomainScore(S.questions, S.currentBook.reflections, S.progress)
+  const lvl   = getDomainLevel(score)
+  const overlay = document.createElement('div')
+  overlay.innerHTML = `<div class="overlay center" id="sd-overlay">
+    <div class="modal" style="max-width:360px;text-align:center">
+      <h3 class="modal-title">Score de Domínio</h3>
+      <p class="modal-sub">${escHtml(S.currentBook.title)}</p>
+      <div style="display:flex;justify-content:center;margin:16px 0">
+        ${renderScoreWidget(score, lvl)}
+      </div>
+      <p style="font-size:.85rem;color:var(--text2);line-height:1.6;margin-bottom:16px">
+        ${getScoreMessage(score)}
+      </p>
+      ${renderScoreBreakdown(S.questions, S.currentBook.reflections)}
+      <p style="margin-top:16px;font-size:.73rem;color:var(--text3);line-height:1.6">
+        O score cresce conforme você responde bem às perguntas.<br/>
+        Reflexões abertas têm peso 2×, checkpoints têm peso 1×.
+      </p>
+      <button class="btn btn-gold" style="width:100%;margin-top:20px" id="sd-close">Fechar</button>
+    </div>
+  </div>`
+  document.body.appendChild(overlay)
+  document.getElementById('sd-overlay').addEventListener('click', e => { if(e.target===e.currentTarget) overlay.remove() })
+  document.getElementById('sd-close').addEventListener('click', () => overlay.remove())
+}
 
 async function generatePremiumCard(canvas, quoteText, bookTitle) {
   const ctx = canvas.getContext('2d')
@@ -1235,11 +1453,15 @@ function renderReader() {
         <button class="btn btn-ghost btn-sm" id="btn-chaps">Capítulos</button>
       </div>
       <span style="font-family:'Playfair Display',serif;font-size:.9rem;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;text-align:center">${book?.title||''}</span>
-      <div style="display:flex;align-items:center;gap:8px">
+      <div style="display:flex;gap:8px;align-items:center">
         <a href="https://t.me/stepbookreflections" target="_blank" title="Comunidade no Telegram"
           style="display:flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;background:rgba(0,136,204,0.15);border:1px solid rgba(0,136,204,0.25);flex-shrink:0">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="#29a8e8"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12L7.19 13.753l-2.95-.924c-.64-.203-.658-.64.135-.953l11.57-4.461c.537-.194 1.006.131.949.806z"/></svg>
         </a>
+        <!-- Score Widget -->
+        <div id="score-widget" onclick="showScoreDetails()" style="cursor:pointer">
+          ${(()=>{ const s=calcDomainScore(S.questions,S.currentBook?.reflections,S.progress); return renderScoreWidget(s,getDomainLevel(s)) })()}
+        </div>
         <button class="btn btn-ghost btn-sm" id="btn-share">Compartilhar</button>
       </div>
     </header>
@@ -1317,7 +1539,13 @@ function bindReader() {
       }
       if (v >= 100 && (S.currentBook.progress||0) < 100) {
         const already = S.currentBook.reflections?.some(r => r._milestone === 100)
-        if (!already) { S.reflPrompt = 100; showReflPrompt() }
+        if (!already) {
+          S.reflPrompt = 100
+          showReflPrompt()
+        } else {
+          // Já tem reflexão final — mostrar tela de conclusão com score
+          setTimeout(() => showCompletionScreen(), 800)
+        }
       }
     }, 100)
   })
@@ -1421,6 +1649,7 @@ function bindQBlocks() {
       const ok = q.selectedOpt === q.correct
       patchQuestion(qi, { answered: true, quality: ok?'good':'retry', answer: q.options[q.selectedOpt] })
       if (!ok) toast('Resposta incorreta. Tente novamente!')
+      updateScoreWidget()
     })
   })
 
@@ -1445,9 +1674,11 @@ function bindQBlocks() {
       try {
         const page   = S.pages.find(p => p.num === (q.beforePage||1))
         const result = await evalAnswerAI(q.question, text, page?.text||'', S.currentBook?.title||'')
-        const score  = result?.score ?? 0
+        const score   = result?.score ?? 0
         const quality = score >= 70 ? 'good' : score >= 40 ? 'close' : 'retry'
-        patchQuestion(qi, { answered: true, answer: text, quality, feedback: result?.feedback })
+        patchQuestion(qi, { answered: true, answer: text, quality, feedback: result?.feedback, score })
+        // Atualiza widget de score após resposta
+        updateScoreWidget()
       } catch { toast('Erro ao avaliar. Tente novamente.'); btn.disabled = false; btn.textContent = 'Enviar resposta' }
     })
   })
@@ -1685,7 +1916,11 @@ async function renderFeedCard(canvas, bookTitle) {
   pG.addColorStop(0,'#D4AF37'); pG.addColorStop(1,'#f5c842')
   ctx.fillStyle=pG; roundRect(ctx,RX,466,pw,8,4); ctx.fill()
   ctx.fillStyle='#D4AF37'; ctx.font='bold 15px sans-serif'
-  ctx.fillText(`${S.progress}% lido`,RX,500)
+
+  // Mostrar score de domínio no card
+  const domScore = calcDomainScore(S.questions, book?.reflections, S.progress)
+  const domLvl   = getDomainLevel(domScore)
+  ctx.fillText(`${S.progress}% lido  ·  ${domScore}% domínio  ${domLvl.emoji}`,RX,500)
 
   const dG=ctx.createLinearGradient(80,0,W-80,0)
   dG.addColorStop(0,'transparent'); dG.addColorStop(.2,'rgba(212,175,55,.6)')
@@ -1746,13 +1981,19 @@ function showReflPrompt() {
   document.getElementById('refl-save').addEventListener('click', async () => {
     const text = document.getElementById('refl-text').value.trim()
     if (!text) { toast('Escreva algo primeiro.'); return }
+    const milestone = S.reflPrompt
     const ref = {
-      type:'text', answer:text, question:`Reflexão aos ${S.reflPrompt}%`,
-      answered:true, quality:'good', _milestone:S.reflPrompt, addedAt:Date.now(),
+      type:'text', answer:text, question:`Reflexão aos ${milestone}%`,
+      answered:true, quality:'good', _milestone:milestone, addedAt:Date.now(),
     }
     await saveReflection(S.currentBook.id, ref)
     modal.innerHTML = ''
     toast('Reflexão salva! ✨')
+    updateScoreWidget()
+    // Após reflexão final (100%), mostrar tela de conclusão com score
+    if (milestone === 100) {
+      setTimeout(() => showCompletionScreen(), 600)
+    }
   })
 }
 
