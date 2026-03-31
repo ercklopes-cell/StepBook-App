@@ -4,10 +4,14 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>StepBook — Leitura Ativa com IA</title>
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=DM+Sans:wght@300;400;500;600&family=Crimson+Pro:ital,wght@0,400;1,400&display=swap" rel="stylesheet" />
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
+<!-- Fontes: só o essencial, display=swap para não bloquear -->
+<link rel="preconnect" href="https://fonts.googleapis.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,400&family=DM+Sans:wght@400;600&display=swap" rel="stylesheet" />
+
+<!-- Scripts: defer para não bloquear renderização -->
+<script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
 <style>
 /* ── TOKENS ──────────────────────────────────────────── */
@@ -23,7 +27,7 @@
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}
-body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;-webkit-font-smoothing:antialiased}
+body{font-family:'DM Sans',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;-webkit-font-smoothing:antialiased}
 body::before{content:'';position:fixed;inset:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");opacity:.025;pointer-events:none;z-index:9999}
 img{display:block;max-width:100%}a{color:inherit;text-decoration:none}button{cursor:pointer;font-family:inherit}input,textarea{font-family:inherit}
 ::-webkit-scrollbar{width:4px;height:4px}::-webkit-scrollbar-track{background:var(--bg2)}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px}::-webkit-scrollbar-thumb:hover{background:var(--gold)}
@@ -157,6 +161,21 @@ img{display:block;max-width:100%}a{color:inherit;text-decoration:none}button{cur
 .share-box{display:flex;align-items:center;justify-content:space-between;background:var(--bg);border:1px solid var(--border2);border-radius:var(--radius);padding:10px 14px;margin-bottom:10px}
 .share-msg{font-size:.86rem;color:var(--gold);font-weight:700;letter-spacing:.02em}
 .share-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
+/* ── MOBILE OTIMIZAÇÕES ──────────────────────────────── */
+@media (max-width: 768px) {
+  /* Touch targets maiores */
+  .btn { min-height: 44px; }
+  .btn-sm { min-height: 38px; padding: 8px 14px; }
+  /* Texto do leitor menor no mobile */
+  .reader-page-text { font-size: 1rem; line-height: 1.75; }
+  /* Navbar compacta */
+  .bookmark-btn { font-size: .65rem; padding: 6px 8px 10px; }
+  /* Q-block mais compacto */
+  .q-block { padding: 18px 16px; }
+  .q-question { font-size: .95rem; }
+  /* Grid de livros: 2 colunas no mobile */
+  .books-grid { grid-template-columns: repeat(2, 1fr) !important; }
+}
 </style>
 </head>
 <body>
@@ -801,10 +820,12 @@ async function generatePremiumCard(canvas, quoteText, bookTitle) {
   glow.addColorStop(1,   'transparent')
   ctx.fillStyle = glow; ctx.fillRect(0, 0, W, H)
 
-  // Grain sutil
-  for (let i = 0; i < 8000; i++) {
-    ctx.fillStyle = `rgba(255,255,255,${Math.random()*0.014})`
-    ctx.fillRect(Math.random()*W, Math.random()*H, 1, 1)
+  // Grain sutil — desativado em mobile para performance
+  if (window.innerWidth >= 768) {
+    for (let i = 0; i < 4000; i++) {
+      ctx.fillStyle = `rgba(255,255,255,${Math.random()*0.014})`
+      ctx.fillRect(Math.random()*W, Math.random()*H, 1, 1)
+    }
   }
 
   // ── MOLDURA ─────────────────────────────────────────────
@@ -1566,22 +1587,52 @@ function renderReaderPages() {
     return
   }
 
-  container.innerHTML = S.pages.map(page => {
-    const locked = isPageLocked(page.num)
-    // Cada pergunta aparece SOMENTE na página exata do beforePage
-    // Sem || page.num-1 que causava duplicatas
-    const pageQs = S.questions
-      .map((q,qi) => ({...q,_qi:qi}))
-      .filter(q => q.beforePage === page.num)
-    return `<div id="page-${page.num}">
-      <div class="reader-page-label">— pág. ${page.num} —</div>
-      <div class="reader-page-text ${locked?'locked-blur':''}">${escHtml(page.text)}</div>
-      ${pageQs.map(q => renderQBlock(q)).join('')}
-    </div>`
-  }).join('')
+  // Renderiza as primeiras 15 páginas imediatamente
+  // O restante é carregado progressivamente via IntersectionObserver
+  const INITIAL = 15
+  const initial = S.pages.slice(0, INITIAL)
+  const rest    = S.pages.slice(INITIAL)
 
-  // Bind Q blocks
+  container.innerHTML = initial.map(page => renderPageHTML(page)).join('')
+
+  // Sentinel para carregar mais páginas ao scrollar
+  if (rest.length > 0) {
+    const sentinel = document.createElement('div')
+    sentinel.id = 'page-sentinel'
+    sentinel.style.height = '1px'
+    container.appendChild(sentinel)
+
+    let restIndex = 0
+    const CHUNK = 10
+    const obs = new IntersectionObserver(entries => {
+      if (!entries[0].isIntersecting) return
+      const chunk = rest.slice(restIndex, restIndex + CHUNK)
+      if (!chunk.length) { obs.disconnect(); sentinel.remove(); return }
+      chunk.forEach(page => {
+        const div = document.createElement('div')
+        div.innerHTML = renderPageHTML(page)
+        container.insertBefore(div.firstElementChild, sentinel)
+      })
+      bindQBlocks()
+      restIndex += CHUNK
+      if (restIndex >= rest.length) { obs.disconnect(); sentinel.remove() }
+    }, { rootMargin: '400px' })
+    obs.observe(sentinel)
+  }
+
   bindQBlocks()
+}
+
+function renderPageHTML(page) {
+  const locked = isPageLocked(page.num)
+  const pageQs = S.questions
+    .map((q,qi) => ({...q,_qi:qi}))
+    .filter(q => q.beforePage === page.num)
+  return `<div id="page-${page.num}">
+    <div class="reader-page-label">— pág. ${page.num} —</div>
+    <div class="reader-page-text ${locked?'locked-blur':''}">${escHtml(page.text)}</div>
+    ${pageQs.map(q => renderQBlock(q)).join('')}
+  </div>`
 }
 
 function renderQBlock(q) {
@@ -2085,8 +2136,26 @@ function escHtml(s) {
 // ═══════════════════════════════════════════════════════
 // BOOT
 // ═══════════════════════════════════════════════════════
+async function waitForLibs() {
+  // Aguarda supabase e pdfjs carregarem (necessário por causa do defer)
+  let tries = 0
+  while (typeof supabase === 'undefined' || typeof pdfjsLib === 'undefined') {
+    if (tries++ > 100) break // timeout 5s
+    await new Promise(r => setTimeout(r, 50))
+  }
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   render('loading')
+  await waitForLibs()
+  // Inicializar cliente Supabase após libs carregarem
+  if (typeof supabase !== 'undefined') {
+    window._sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+      auth: { persistSession: true, autoRefreshToken: true }
+    })
+    // Reatribuir sb para o cliente correto
+    Object.defineProperty(window, 'sb', { get: () => window._sb })
+  }
   await initAuth()
   if (S.user) {
     await loadBooks()
