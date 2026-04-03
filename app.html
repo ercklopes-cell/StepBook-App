@@ -10,8 +10,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,400&family=DM+Sans:wght@400;600&display=swap" rel="stylesheet" />
 
 <!-- Scripts: defer para não bloquear renderização -->
-<script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-<script defer src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
 <style>
 /* ── TOKENS ──────────────────────────────────────────── */
@@ -2136,26 +2136,8 @@ function escHtml(s) {
 // ═══════════════════════════════════════════════════════
 // BOOT
 // ═══════════════════════════════════════════════════════
-async function waitForLibs() {
-  // Aguarda supabase e pdfjs carregarem (necessário por causa do defer)
-  let tries = 0
-  while (typeof supabase === 'undefined' || typeof pdfjsLib === 'undefined') {
-    if (tries++ > 100) break // timeout 5s
-    await new Promise(r => setTimeout(r, 50))
-  }
-}
-
 document.addEventListener('DOMContentLoaded', async () => {
   render('loading')
-  await waitForLibs()
-  // Inicializar cliente Supabase após libs carregarem
-  if (typeof supabase !== 'undefined') {
-    window._sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
-      auth: { persistSession: true, autoRefreshToken: true }
-    })
-    // Reatribuir sb para o cliente correto
-    Object.defineProperty(window, 'sb', { get: () => window._sb })
-  }
   await initAuth()
   if (S.user) {
     await loadBooks()
