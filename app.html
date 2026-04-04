@@ -368,27 +368,47 @@ async function readPDF(file) {
   const buf  = await file.arrayBuffer()
   const pdf  = await pdfjsLib.getDocument({ data: buf }).promise
   const total = pdf.numPages
+  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
 
-  // Processar todas as páginas em paralelo (muito mais rápido)
-  const pagePromises = Array.from({ length: total }, (_, i) =>
-    pdf.getPage(i + 1).then(async page => {
-      const content = await page.getTextContent()
-      const text    = content.items.map(x => x.str).join(' ').trim()
-      return { num: i + 1, text }
-    })
-  )
-  const pages = await Promise.all(pagePromises)
+  // Mobile: processar em batches de 10 para não explodir a RAM
+  // Desktop: paralelo total (mais rápido)
+  const BATCH = isMobile ? 10 : total
+  const pages = []
 
-  // Extrair capa (página 1) em paralelo com as páginas
+  for (let start = 0; start < total; start += BATCH) {
+    const end = Math.min(start + BATCH, total)
+    const batch = await Promise.all(
+      Array.from({ length: end - start }, (_, i) =>
+        pdf.getPage(start + i + 1).then(async page => {
+          const content = await page.getTextContent()
+          const text    = content.items.map(x => x.str).join(' ').trim()
+          return { num: start + i + 1, text }
+        })
+      )
+    )
+    pages.push(...batch)
+    // Atualizar progress no mobile
+    if (isMobile) {
+      const pct = Math.round((pages.length / total) * 100)
+      const stepEl = document.querySelector('.loading-steps div')
+      if (stepEl) stepEl.textContent = `⟳ Lendo o PDF… ${pct}%`
+      // Yield para o browser não travar a UI
+      await new Promise(r => setTimeout(r, 0))
+    }
+  }
+
+  // Capa só no desktop — no mobile economizar memória
   let coverB64 = null
-  try {
-    const page     = await pdf.getPage(1)
-    const viewport = page.getViewport({ scale: 0.5 })
-    const canvas   = document.createElement('canvas')
-    canvas.width   = viewport.width; canvas.height = viewport.height
-    await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise
-    coverB64 = canvas.toDataURL('image/jpeg', 0.6).split(',')[1]
-  } catch {}
+  if (!isMobile) {
+    try {
+      const page     = await pdf.getPage(1)
+      const viewport = page.getViewport({ scale: 0.5 })
+      const canvas   = document.createElement('canvas')
+      canvas.width   = viewport.width; canvas.height = viewport.height
+      await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise
+      coverB64 = canvas.toDataURL('image/jpeg', 0.6).split(',')[1]
+    } catch {}
+  }
 
   return { pages, coverB64, totalPages: total }
 }
@@ -1191,13 +1211,14 @@ function renderLibrary() {
         <button class="btn btn-gold btn-sm" id="btn-upgrade">Upgrade Pro ⭐</button>
       </div>` : ''}
 
-      <!-- DROPZONE -->
-      <div class="dropzone" id="dropzone">
+      <!-- DROPZONE: label envolve o input para compatibilidade com Safari iOS -->
+      <label for="file-input" class="dropzone" id="dropzone" style="cursor:pointer;display:block">
         <div class="dropzone-icon">📄</div>
-        <div class="dropzone-title">Arraste um PDF aqui</div>
-        <div class="dropzone-sub">ou clique para selecionar</div>
-        <input type="file" id="file-input" accept=".pdf" style="display:none" />
-      </div>
+        <div class="dropzone-title">Toque para selecionar um PDF</div>
+        <div class="dropzone-sub">ou arraste aqui (desktop)</div>
+        <input type="file" id="file-input" accept=".pdf,application/pdf"
+          style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none" />
+      </label>
 
       <!-- LIBRARY -->
       <section style="margin-top:48px">
@@ -1245,11 +1266,11 @@ function bindLibrary() {
   // Upgrade
   document.getElementById('btn-upgrade')?.addEventListener('click', showPaywall)
 
-  // Dropzone
-  const dz   = document.getElementById('dropzone')
-  const fi   = document.getElementById('file-input')
+  // Dropzone — label já cuida do clique/toque no mobile
+  const dz = document.getElementById('dropzone')
+  const fi = document.getElementById('file-input')
 
-  dz.addEventListener('click', () => fi.click())
+  // Drag & drop (desktop)
   dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag') })
   dz.addEventListener('dragleave', () => dz.classList.remove('drag'))
   dz.addEventListener('drop', e => {
@@ -1257,9 +1278,13 @@ function bindLibrary() {
     const file = e.dataTransfer.files[0]
     if (file) handleFileSelected(file)
   })
+
+  // Input change — funciona em todos os browsers incluindo Safari iOS
   fi.addEventListener('change', e => {
     const file = e.target.files?.[0]
     if (file) handleFileSelected(file)
+    // Reset para permitir selecionar o mesmo arquivo novamente
+    fi.value = ''
   })
 
   // Book open
