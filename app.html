@@ -576,29 +576,35 @@ async function evalAnswerAI(question, answer, context, bookTitle) {
 function isPageLocked(pageNum) {
   if (!S.currentBook) return false
   const chapters = S.currentBook.chapters || []
+  if (chapters.length === 0) return false
 
-  // Para cada capítulo trancado, verificar se a porta foi aberta
-  for (const ch of chapters) {
-    if (!ch.locked) continue
-    if (pageNum < ch.pageNum) continue // página antes do capítulo trancado — ok
-
-    // Encontrar pergunta gate próxima ao início do capítulo (janela ampla)
-    const gate = S.questions.find(q =>
-      q.beforePage >= ch.pageNum - 10 &&
-      q.beforePage <= ch.pageNum + 5
-    )
-
-    // Sem pergunta gate — capítulo desbloqueado por padrão
-    if (!gate) continue
-
-    // Pergunta respondida corretamente — capítulo livre
-    if (gate.quality === 'good') continue
-
-    // Verificar se página pertence a ESTE capítulo trancado
-    const nextChIdx = chapters.findIndex(c => c.pageNum > ch.pageNum)
-    const nextChPage = nextChIdx !== -1 ? chapters[nextChIdx].pageNum : Infinity
-    if (pageNum < nextChPage) return true
+  // Encontrar o capítulo ao qual esta página pertence
+  // (o último capítulo cujo pageNum <= pageNum)
+  let ownerIdx = -1
+  for (let i = 0; i < chapters.length; i++) {
+    if (chapters[i].pageNum <= pageNum) ownerIdx = i
   }
+
+  // Página antes do primeiro capítulo — livre
+  if (ownerIdx < 0) return false
+
+  // Capítulo 1 (índice 0) — SEMPRE LIVRE
+  if (ownerIdx === 0) return false
+
+  // Para capítulos 2 em diante: verificar se há gate respondido
+  // O gate é a última pergunta ANTES do início deste capítulo
+  const ch = chapters[ownerIdx]
+  const gate = [...S.questions]
+    .reverse()
+    .find(q => q.beforePage < ch.pageNum)
+
+  // Sem nenhuma pergunta antes — liberar
+  if (!gate) return false
+
+  // Tem gate mas não foi respondido corretamente — BLOQUEAR
+  if (gate.quality !== 'good') return true
+
+  // Gate respondido — livre
   return false
 }
 
@@ -1179,11 +1185,6 @@ function renderLibrary() {
           onmouseover="this.style.background='rgba(0,136,204,0.3)'" onmouseout="this.style.background='rgba(0,136,204,0.15)'">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="#29a8e8"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12L7.19 13.753l-2.95-.924c-.64-.203-.658-.64.135-.953l11.57-4.461c.537-.194 1.006.131.949.806z"/></svg>
         </a>
-        <a href="https://t.me/stepbookreflections" target="_blank" title="Biblioteca Pública no Telegram"
-          style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;background:rgba(41,182,246,.12);border:1px solid rgba(41,182,246,.25);transition:all .2s;flex-shrink:0"
-          onmouseover="this.style.background='rgba(41,182,246,.25)'" onmouseout="this.style.background='rgba(41,182,246,.12)'">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8l-1.68 7.92c-.12.56-.44.7-.9.44l-2.5-1.84-1.2 1.16c-.14.14-.26.26-.52.26l.18-2.6 4.74-4.28c.2-.18-.04-.28-.32-.1L7.74 14.6 5.28 13.8c-.56-.18-.58-.56.12-.82l9.28-3.58c.46-.16.86.12.96.4z" fill="#29B6F6"/></svg>
-        </a>
         <span class="badge badge-gold">${isPro ? '⭐ Pro' : 'Grátis'}</span>
         <button class="btn btn-ghost btn-sm" id="btn-signout">Sair</button>
       </div>
@@ -1421,22 +1422,33 @@ async function runImport(file) {
 
     const saved = await saveBook(bookData)
 
-    // Salvar páginas e PDF em paralelo (não bloquear abertura do leitor)
+    // Salvar páginas — sequencial no mobile para evitar timeout, paralelo no desktop
     const pageRows = pages.map(p => ({ book_id: saved.id, page_num: p.num, text: p.text }))
+    const isMob   = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+    const BATCH   = isMob ? 30 : 100  // mobile: lotes menores
 
-    // Páginas em paralelo (lotes simultâneos)
-    const BATCH = 100
-    const batchPromises = []
-    for (let i = 0; i < pageRows.length; i += BATCH) {
-      batchPromises.push(
-        sb.from('book_pages').upsert(pageRows.slice(i, i+BATCH), { onConflict: 'book_id,page_num' })
-      )
+    if (isMob) {
+      // Mobile: sequencial para não sobrecarregar a conexão
+      for (let i = 0; i < pageRows.length; i += BATCH) {
+        await sb.from('book_pages').upsert(pageRows.slice(i, i+BATCH), { onConflict: 'book_id,page_num' })
+        // Mostrar progresso
+        const pct = Math.round(((i + BATCH) / pageRows.length) * 100)
+        const els = document.querySelectorAll('.loading-steps div')
+        if (els[4]) els[4].textContent = `⟳ Salvando na biblioteca… ${Math.min(pct,100)}%`
+      }
+    } else {
+      // Desktop: paralelo (mais rápido)
+      const batchPromises = []
+      for (let i = 0; i < pageRows.length; i += BATCH) {
+        batchPromises.push(
+          sb.from('book_pages').upsert(pageRows.slice(i, i+BATCH), { onConflict: 'book_id,page_num' })
+        )
+      }
+      await Promise.all(batchPromises)
     }
-    // PDF upload também em paralelo — não espera terminar para abrir o livro
-    Promise.all([
-      ...batchPromises,
-      uploadPDF(saved.id, file).catch(() => {}),
-    ]).catch(() => {})
+
+    // Upload PDF em background (não bloqueia abertura do livro)
+    uploadPDF(saved.id, file).catch(() => {})
 
     await loadBooks()
     const finalBook = S.books.find(b => b.id === saved.id) || { ...bookData, id: saved.id }
@@ -1797,12 +1809,15 @@ function showChapPanel() {
         <span style="font-family:'Playfair Display',serif;font-size:1rem;color:var(--text)">Capítulos</span>
         <button class="btn btn-ghost btn-sm" id="chap-close">✕</button>
       </div>
-      ${chaps.map((c,i) => {
-        const gate   = S.questions.find(q => q.beforePage >= c.pageNum-1 && q.beforePage <= c.pageNum+1)
-        const locked = c.locked && (!gate || gate.quality !== 'good')
-        return `<div class="chap-item ${locked?'locked':''}" data-page="${c.pageNum}">
-          <span class="chap-lock">${locked?'🔒':'📖'}</span>
-          <span class="chap-name">${escHtml(c.title)}</span>
+      ${chaps.map((c, i) => {
+        // Usa isPageLocked para estado real — consistente com o leitor
+        const locked = i > 0 && isPageLocked(c.pageNum)
+        return `<div class="chap-item ${locked?'locked':''}" data-page="${c.pageNum}" data-locked="${locked}">
+          <span class="chap-lock">${i===0?'📖':locked?'🔒':'✅'}</span>
+          <div style="flex:1">
+            <span class="chap-name">${escHtml(c.title)}</span>
+            ${locked ? `<div style="font-size:.68rem;color:var(--text3);margin-top:2px">Responda a pergunta para desbloquear</div>` : ''}
+          </div>
           <span class="chap-page">pág ${c.pageNum}</span>
         </div>`
       }).join('')}
@@ -1813,6 +1828,11 @@ function showChapPanel() {
   document.getElementById('chap-close').addEventListener('click', () => { panel.innerHTML = '' })
   document.querySelectorAll('.chap-item').forEach(el => {
     el.addEventListener('click', () => {
+      const locked = el.dataset.locked === 'true'
+      if (locked) {
+        toast('🔒 Responda a pergunta do capítulo anterior para desbloquear.')
+        return
+      }
       panel.innerHTML = ''
       const pageNum = parseInt(el.dataset.page)
       setTimeout(() => {
