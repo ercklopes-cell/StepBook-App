@@ -1529,16 +1529,15 @@ async function runImport(file) {
     }
     console.log('Step 4: bookData criado', { title: bookData.title, totalPages, questionsCount: questions.length })
 
-    // Salvar metadados do livro (sem páginas — só o JSON leve)
-    // Remover campos que não existem no banco
-    const row = {
+    // Salvar metadados do livro (sem perguntas — primeiro insert menor)
+    const rowInitial = {
       title:       bookData.title,
       author:      bookData.author,
       cover_url:   bookData.cover_url,
       emoji:       bookData.emoji,
       description: bookData.description,
       chapters:    bookData.chapters,
-      questions:   bookData.questions,
+      questions:   [], // vazio inicialmente
       reflections: bookData.reflections,
       total_pages: bookData.total_pages,
       progress:    bookData.progress,
@@ -1546,8 +1545,8 @@ async function runImport(file) {
       user_id:     S.user.id,
       updated_at:  new Date().toISOString(),
     }
-    console.log('Step 4: Inserindo na tabela books...')
-    const savePromise = sb.from('books').insert(row).select().single()
+    console.log('Step 4: Inserindo livro inicial (sem perguntas)...')
+    const savePromise = sb.from('books').insert(rowInitial).select().single()
     const timeoutPromiseSave = new Promise((_, reject) => 
       setTimeout(() => reject(new Error('Timeout ao salvar livro no banco de dados. Verifique sua conexão.')), 30000) // 30 segundos
     )
@@ -1558,10 +1557,26 @@ async function runImport(file) {
     }
     console.log('Step 4: Livro salvo com ID:', saved.id)
 
+    // Agora atualizar com as perguntas (separadamente para evitar payload grande)
+    if (questions.length > 0) {
+      console.log('Step 4: Atualizando perguntas...')
+      const updatePromise = sb.from('books').update({ questions }).eq('id', saved.id)
+      const timeoutUpdate = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Timeout ao atualizar perguntas.')), 20000)
+      )
+      const { error: updateErr } = await Promise.race([updatePromise, timeoutUpdate])
+      if (updateErr) {
+        console.warn('Step 4: Falhou ao salvar perguntas, continuando sem elas:', updateErr.message)
+        questions = [] // fallback
+      } else {
+        console.log('Step 4: Perguntas salvas com sucesso')
+      }
+    }
+
     // Abrir o livro IMEDIATAMENTE com as páginas já em memória
     // Não espera salvar as páginas no banco
     console.log('Step 4: Abrindo livro...')
-    const bookWithId = { ...bookData, id: saved.id }
+    const bookWithId = { ...bookData, id: saved.id, questions } // usar questions atualizadas
     await loadBooks()
     console.log('Step 4: Livros recarregados, abrindo livro...')
     openBook(bookWithId, pages)
