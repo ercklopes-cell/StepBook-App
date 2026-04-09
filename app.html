@@ -1337,7 +1337,16 @@ function bindLibrary() {
 }
 
 function handleFileSelected(file) {
-  if (!file.name.endsWith('.pdf')) { toast('Selecione um arquivo PDF.'); return }
+  // Validação melhorada para mobile: checar MIME type E nome
+  const isPdfByType = file.type === 'application/pdf'
+  const isPdfByName = file.name.toLowerCase().endsWith('.pdf')
+  const isPdfValid = isPdfByType || isPdfByName
+  
+  if (!isPdfValid) { 
+    toast('Selecione um arquivo PDF válido.'); 
+    return 
+  }
+  
   const isPro = S.plan === 'pro'
   if (!isPro && S.books.length >= 1) { showPaywall(); return }
   runImport(file)
