@@ -1213,12 +1213,12 @@ function renderLibrary() {
       </div>` : ''}
 
       <!-- DROPZONE: label envolve o input para compatibilidade com Safari iOS -->
-      <label for="file-input" class="dropzone" id="dropzone" style="cursor:pointer;display:block">
+      <label for="file-input" class="dropzone" id="dropzone" style="cursor:pointer;display:block;position:relative">
         <div class="dropzone-icon">📄</div>
         <div class="dropzone-title">Toque para selecionar um PDF</div>
         <div class="dropzone-sub">ou arraste aqui (desktop)</div>
         <input type="file" id="file-input" accept=".pdf,application/pdf"
-          style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none" />
+          style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%" />
       </label>
 
       <!-- LIBRARY -->
