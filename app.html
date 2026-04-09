@@ -313,7 +313,7 @@ async function loadBooks() {
   S.books = data ?? []
 }
 async function saveBook(book) {
-  const { pages, ...meta } = book
+  const { pages, cover_b64, ...meta } = book   // nunca enviar cover_b64 nem pages ao banco
   const row = { ...meta, user_id: S.user.id, updated_at: new Date().toISOString() }
   const { data, error } = await sb.from('books').upsert(row, { onConflict: 'id' }).select().single()
   if (error) throw error
@@ -1408,7 +1408,7 @@ async function runImport(file) {
     const bookData = {
       title:       meta.title || rawTitle,
       author:      meta.author || 'Autor desconhecido',
-      cover_b64:   coverB64,
+      cover_b64:   null,           // nunca salvar no banco — muito pesado para mobile
       cover_url:   meta.coverUrl || null,
       emoji:       guessEmoji(meta.title||rawTitle),
       description: meta.description || '',
