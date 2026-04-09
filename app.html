@@ -1458,10 +1458,10 @@ async function runImport(file) {
     // ── Step 0: Ler PDF + limpeza local instantânea ──────
     console.log('Step 0: Lendo PDF...')
     const pdfPromise = readPDF(file)
-    const timeoutPromise = new Promise((_, reject) => 
+    const timeoutPromisePDF = new Promise((_, reject) => 
       setTimeout(() => reject(new Error('Timeout ao processar PDF. Arquivo muito grande ou complexo.')), 120000) // 2 minutos
     )
-    const { pages: rawPages, coverB64, totalPages } = await Promise.race([pdfPromise, timeoutPromise])
+    const { pages: rawPages, coverB64, totalPages } = await Promise.race([pdfPromise, timeoutPromisePDF])
     console.log('PDF lido com sucesso. Páginas:', totalPages)
     const pages = cleanTextLocal(rawPages)  // regex instantâneo, sem IA
 
@@ -1542,10 +1542,10 @@ async function runImport(file) {
     }
     console.log('Step 4: Inserindo na tabela books...')
     const savePromise = sb.from('books').insert(row).select().single()
-    const timeoutPromise = new Promise((_, reject) => 
+    const timeoutPromiseSave = new Promise((_, reject) => 
       setTimeout(() => reject(new Error('Timeout ao salvar livro no banco de dados. Verifique sua conexão.')), 30000) // 30 segundos
     )
-    const { data: saved, error: saveErr } = await Promise.race([savePromise, timeoutPromise])
+    const { data: saved, error: saveErr } = await Promise.race([savePromise, timeoutPromiseSave])
     if (saveErr) {
       console.error('Step 4: Erro ao salvar livro:', saveErr)
       throw saveErr
@@ -1637,8 +1637,8 @@ async function openBook(book, preloadedPages) {
     console.log('openBook: Páginas já disponíveis, renderizando...')
     renderReaderPages()
   }
-  }
 }
+
 
 // ── READER ────────────────────────────────────────────
 function renderReader() {
@@ -1696,7 +1696,8 @@ function renderReader() {
 }
 
 function bindReader() {
-  console.log('bindReader: Vinculando eventos do reader')  document.getElementById('btn-home').addEventListener('click', () => {
+  console.log('bindReader: Vinculando eventos do reader')
+  document.getElementById('btn-home').addEventListener('click', () => {
     // Limpar estado do leitor e voltar imediatamente
     S.currentBook = null
     S.pages       = []
