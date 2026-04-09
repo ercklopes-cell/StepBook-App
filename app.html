@@ -1421,8 +1421,22 @@ async function runImport(file) {
     }
 
     // Salvar metadados do livro (sem páginas — só o JSON leve)
-    const { pages: _p, cover_b64: _c, ...bookMeta } = bookData
-    const row = { ...bookMeta, user_id: S.user.id, updated_at: new Date().toISOString() }
+    // Remover campos que não existem no banco
+    const row = {
+      title:       bookData.title,
+      author:      bookData.author,
+      cover_url:   bookData.cover_url,
+      emoji:       bookData.emoji,
+      description: bookData.description,
+      chapters:    bookData.chapters,
+      questions:   bookData.questions,
+      reflections: bookData.reflections,
+      total_pages: bookData.total_pages,
+      progress:    bookData.progress,
+      added_at:    bookData.added_at,
+      user_id:     S.user.id,
+      updated_at:  new Date().toISOString(),
+    }
     const { data: saved, error: saveErr } = await sb.from('books').insert(row).select().single()
     if (saveErr) throw saveErr
 
