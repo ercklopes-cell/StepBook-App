@@ -1217,8 +1217,8 @@ function renderLibrary() {
         <div class="dropzone-icon">📄</div>
         <div class="dropzone-title">Toque para selecionar um PDF</div>
         <div class="dropzone-sub">ou arraste aqui (desktop)</div>
-        <input type="file" id="file-input" accept=".pdf,application/pdf"
-          style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%" />
+        <input type="file" id="file-input" accept="application/pdf"
+          style="position:absolute;inset:0;left:0;top:0;opacity:0;cursor:pointer;width:100%;height:100%;z-index:2" />
       </label>
 
       <!-- LIBRARY -->
@@ -1267,11 +1267,19 @@ function bindLibrary() {
   // Upgrade
   document.getElementById('btn-upgrade')?.addEventListener('click', showPaywall)
 
-  // Dropzone — label já cuida do clique/toque no mobile
+  // Dropzone — label envolve o input para compatibilidade com Safari iOS
   const dz = document.getElementById('dropzone')
   const fi = document.getElementById('file-input')
 
-  // Drag & drop (desktop)
+  // Clique/toque para abrir seletor de arquivo — MOBILE SAFE
+  dz.addEventListener('click', e => {
+    // Se clickou no input mesmo, deixar seguir normal
+    if (e.target === fi) return
+    e.preventDefault()
+    fi.click()
+  })
+
+  // Drag & drop (desktop apenas)
   dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag') })
   dz.addEventListener('dragleave', () => dz.classList.remove('drag'))
   dz.addEventListener('drop', e => {
