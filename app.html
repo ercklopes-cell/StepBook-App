@@ -1283,9 +1283,10 @@ function bindLibrary() {
   // Input change — funciona em todos os browsers incluindo Safari iOS
   fi.addEventListener('change', e => {
     const file = e.target.files?.[0]
-    if (file) handleFileSelected(file)
-    // Reset para permitir selecionar o mesmo arquivo novamente
-    fi.value = ''
+    if (!file) { toast('Nenhum arquivo selecionado.'); return }
+    // Reset APÓS capturar o arquivo, não antes
+    handleFileSelected(file)
+    setTimeout(() => { try { fi.value = '' } catch(err) {} }, 500)
   })
 
   // Book open
@@ -1366,28 +1367,41 @@ async function runImport(file) {
   S.importStep  = 0
   render('importing')
 
-  try {
-    // ── Step 0: Ler PDF + limpeza local instantânea ──────
-    const { pages: rawPages, coverB64, totalPages } = await readPDF(file)
-    const pages = cleanTextLocal(rawPages)  // regex instantâneo, sem IA
+  // Log de debug — aparece na tela de loading
+  const dbg = (msg) => {
+    const el = document.querySelector('.loading-steps')
+    if (el) el.innerHTML += `<div style="color:rgba(255,255,255,.4);font-size:.7rem;margin-top:4px">▸ ${msg}</div>`
+    console.log('[StepBook]', msg)
+  }
 
-    // ── Step 1: Metadados (Google Books) + detectChapters em paralelo ──
+  try {
+    dbg(`Arquivo: ${file.name} (${(file.size/1024).toFixed(0)}KB)`)
+
+    // ── Step 0: Ler PDF ──────────────────────────────────
+    dbg('Iniciando leitura do PDF...')
+    const { pages: rawPages, coverB64, totalPages } = await readPDF(file)
+    dbg(`PDF lido: ${totalPages} páginas`)
+    const pages = cleanTextLocal(rawPages)
+
+    // ── Step 1: Metadados ──────────────────────────────
     S.importStep = 1; updateImportStep()
+    dbg('Buscando metadados...')
     const rawTitle = cleanTitle(file.name)
     const [meta, chapters] = await Promise.all([
       fetchBookMeta(rawTitle),
       Promise.resolve(detectChapters(pages)),
     ])
+    dbg(`Metadados: "${meta.title||rawTitle}" | ${chapters.length} capítulos`)
 
-    // ── Step 2: Detectar capítulos (já feito acima) ──────
+    // ── Step 2: Capítulos ──────────────────────────────
     S.importStep = 2; updateImportStep()
-    await new Promise(r => setTimeout(r, 50)) // tick visual
+    await new Promise(r => setTimeout(r, 50))
 
-    // ── Step 3: Gerar perguntas — 1 ÚNICA chamada à IA ──
+    // ── Step 3: Perguntas ──────────────────────────────
     S.importStep = 3; updateImportStep()
+    dbg('Gerando perguntas com IA...')
     let questions = []
     try {
-      // Amostra distribuída: início + meio + fim (max 80 páginas)
       const total  = pages.length
       const sample = [
         ...pages.slice(0, Math.min(28, total)),
@@ -1399,11 +1413,15 @@ async function runImport(file) {
         new Promise((_,r) => setTimeout(() => r(new Error('timeout')), 45000))
       ])
       if (generated?.length) questions = generated
-    } catch (e) { console.warn('makeQuestions falhou:', e.message) }
+      dbg(`Perguntas: ${questions.length} geradas`)
+    } catch (e) {
+      dbg(`Perguntas falhou: ${e.message} — continuando...`)
+    }
     questions = injectAutoMCQ(questions, totalPages)
 
-    // ── Step 4: Salvar e abrir ─────────────────────────
+    // ── Step 4: Salvar ─────────────────────────────────
     S.importStep = 4; updateImportStep()
+    dbg('Salvando livro no banco...')
 
     const bookData = {
       title:       meta.title || rawTitle,
@@ -1420,8 +1438,6 @@ async function runImport(file) {
       added_at:    new Date().toISOString(),
     }
 
-    // Salvar metadados do livro (sem páginas — só o JSON leve)
-    // Remover campos que não existem no banco
     const row = {
       title:       bookData.title,
       author:      bookData.author,
@@ -1437,16 +1453,20 @@ async function runImport(file) {
       user_id:     S.user.id,
       updated_at:  new Date().toISOString(),
     }
-    const { data: saved, error: saveErr } = await sb.from('books').insert(row).select().single()
-    if (saveErr) throw saveErr
 
-    // Abrir o livro IMEDIATAMENTE com as páginas já em memória
-    // Não espera salvar as páginas no banco
+    const { data: saved, error: saveErr } = await sb.from('books').insert(row).select().single()
+    if (saveErr) {
+      dbg(`ERRO ao salvar: ${saveErr.message}`)
+      throw saveErr
+    }
+    dbg(`Livro salvo! ID: ${saved.id.slice(0,8)}...`)
+
     const bookWithId = { ...bookData, id: saved.id }
     await loadBooks()
     openBook(bookWithId, pages)
 
-    // Salvar páginas em background — não bloqueia o leitor
+    // Páginas em background
+    dbg('Salvando páginas em background...')
     const pageRows = pages.map(p => ({ book_id: saved.id, page_num: p.num, text: p.text }))
     const isMob    = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
     const BATCH    = isMob ? 20 : 100
@@ -1456,14 +1476,14 @@ async function runImport(file) {
         await sb.from('book_pages')
           .upsert(pageRows.slice(i, i + BATCH), { onConflict: 'book_id,page_num' })
           .catch(() => {})
-        if (isMob) await new Promise(r => setTimeout(r, 100)) // respira entre lotes
+        if (isMob) await new Promise(r => setTimeout(r, 100))
       }
       uploadPDF(saved.id, file).catch(() => {})
     })()
 
   } catch (err) {
-    console.error(err)
-    S.importError = `Erro ao importar: ${err.message}`
+    console.error('[StepBook] ERRO:', err)
+    S.importError = `Erro: ${err.message}`
     render('importing')
   }
 }
