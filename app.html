@@ -770,20 +770,36 @@ async function runImport(file) {
   S.importError=null; S.importStep=0; S.importMsg=''; render('importing')
 
   try {
-    // STEP 0 — Ler PDF
-    S.importMsg='Iniciando leitura…'; updateImportUI()
-    let pages, total
+    // STEP 0 — Salvar PDF no Storage ANTES de qualquer processamento
+    // Isso testa conectividade e garante que o arquivo está seguro
+    S.importMsg='Enviando PDF...'; updateImportUI()
+
+    const rawTitle = cleanTitle(file.name||'Livro')
+    const tempId = crypto.randomUUID()
+    const pdfPath = `${S.user.id}/${tempId}.pdf`
+
+    S.importMsg=`Salvando PDF (${(file.size/1024/1024).toFixed(1)}MB)...`; updateImportUI()
+    const { error: upErr } = await db.storage.from('pdfs').upload(pdfPath, file, {upsert:true})
+    if (upErr) throw new Error(`Falha ao salvar PDF: ${upErr.message}`)
+    S.importMsg='PDF salvo! Processando...'; updateImportUI()
+
+    // STEP 1 — Ler PDF com PDF.js
+    S.importStep=1; S.importMsg='Lendo o PDF...'; updateImportUI()
+    let pages=[], total=0
     try {
       const r = await readPDF(file)
       pages=cleanPages(r.pages); total=r.total
       S.importMsg=`${total} páginas lidas`; updateImportUI()
     } catch(e) {
-      throw new Error(`Falha ao ler PDF: ${e.message}`)
+      // PDF.js falhou — criar livro vazio, páginas serão carregadas depois
+      console.warn('PDF.js falhou:', e.message)
+      total=1
+      pages=[{num:1, text:'Texto não disponível — erro ao ler PDF.'}]
+      S.importMsg='Aviso: leitura parcial. Continuando...'; updateImportUI()
     }
 
-    // STEP 1 — Metadados
-    S.importStep=1; S.importMsg='Buscando informações do livro…'; updateImportUI()
-    const rawTitle = cleanTitle(file.name||'Livro')
+    // STEP 2 — Metadados + Capítulos
+    S.importStep=2; S.importMsg='Buscando informações...'; updateImportUI()
     let meta={}, chapters
     try {
       ;[meta, chapters] = await Promise.all([
@@ -793,26 +809,21 @@ async function runImport(file) {
     } catch { meta={}; chapters=detectChapters(pages) }
     const title = meta.title||rawTitle
 
-    // STEP 2 — Capítulos
-    S.importStep=2; S.importMsg=`${chapters.length} capítulos detectados`; updateImportUI()
-    await new Promise(r=>setTimeout(r,80))
-
     // STEP 3 — Perguntas
-    S.importStep=3; S.importMsg='Gerando perguntas com IA…'; updateImportUI()
+    S.importStep=3; S.importMsg='Gerando perguntas...'; updateImportUI()
     let questions=[]
     try {
       const generated = await Promise.race([
         genQuestions(pages,title,chapters,meta.description||''),
-        new Promise((_,r)=>setTimeout(()=>r(new Error('timeout')),50000))
+        new Promise((_,r)=>setTimeout(()=>r(new Error('timeout')),40000))
       ])
       if (generated?.length) questions=generated
-    } catch(e) { console.warn('Perguntas:',e.message) }
+    } catch(e) { console.warn('Perguntas:', e.message) }
     questions = injectCheckpoints(questions, total)
 
-    // STEP 4 — Salvar
-    S.importStep=4; S.importMsg='Salvando na biblioteca…'; updateImportUI()
+    // STEP 4 — Salvar livro no banco
+    S.importStep=4; S.importMsg='Salvando na biblioteca...'; updateImportUI()
 
-    // Inserir livro — campos explícitos, sem spread
     const {data:saved, error:saveErr} = await db.from('books').insert({
       user_id:     S.user.id,
       title:       title,
@@ -830,11 +841,12 @@ async function runImport(file) {
     }).select('id').single()
 
     if (saveErr) throw new Error(`Banco: ${saveErr.message}`)
-
     const bookId = saved.id
-    S.importMsg='Abrindo livro…'; updateImportUI()
 
-    // Carregar livros e abrir
+    // Renomear PDF para o ID real do livro
+    db.storage.from('pdfs').move(pdfPath, `${S.user.id}/${bookId}.pdf`).catch(()=>{})
+
+    S.importMsg='Abrindo...'; updateImportUI()
     await loadBooks()
     const book = S.books.find(b=>b.id===bookId) || {
       id:bookId, title, author:meta.author||'Autor desconhecido',
@@ -843,12 +855,12 @@ async function runImport(file) {
     }
     openBook(book, pages)
 
-    // Salvar páginas em background (não bloqueia)
-    savePagesBackground(bookId, pages)
+    // Páginas em background
+    if (pages.length>1) savePagesBackground(bookId, pages)
 
   } catch(err) {
-    console.error('[Import Error]', err)
-    S.importError = err.message||'Erro desconhecido ao importar.'
+    console.error('[Import]', err)
+    S.importError = err.message||'Erro desconhecido.'
     render('importing')
   }
 }
