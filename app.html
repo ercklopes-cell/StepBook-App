@@ -1,1584 +1,915 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>StepBook — Leitura Ativa com IA</title>
-
-<!-- Fontes: só o essencial, display=swap para não bloquear -->
-<link rel="preconnect" href="https://fonts.googleapis.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,400&family=DM+Sans:wght@400;600&display=swap" rel="stylesheet" />
-
-<!-- Scripts: defer para não bloquear renderização -->
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>StepBook — Leitura Ativa</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,400&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-
 <style>
-/* ── TOKENS ──────────────────────────────────────────── */
-:root {
+:root{
   --bg:#030810;--bg2:#07111f;--bg3:#0d1a2e;
-  --surface:#0e1c30;--surface2:#152338;
-  --border:rgba(222,173,42,.10);--border2:rgba(222,173,42,.22);--border3:rgba(222,173,42,.40);
-  --text:#FFF;--text2:rgba(255,255,255,.55);--text3:rgba(255,255,255,.28);
-  --gold:#DEAD2A;--gold2:#f5c842;
-  --gold-dim:rgba(222,173,42,.08);--gold-dim2:rgba(222,173,42,.15);
+  --gold:#D4AF37;--gold2:#f5c842;--gold-dim:rgba(212,175,55,.08);--gold-dim2:rgba(212,175,55,.15);
+  --border:rgba(212,175,55,.12);--border2:rgba(212,175,55,.25);
+  --text:#fff;--text2:rgba(255,255,255,.55);--text3:rgba(255,255,255,.28);
   --green:#3aaa72;--red:#d05050;
-  --radius:6px;--radius-lg:12px;
+  --r:8px;--r2:14px;
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}
 body{font-family:'DM Sans',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;-webkit-font-smoothing:antialiased}
-body::before{content:'';position:fixed;inset:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");opacity:.025;pointer-events:none;z-index:9999}
-img{display:block;max-width:100%}a{color:inherit;text-decoration:none}button{cursor:pointer;font-family:inherit}input,textarea{font-family:inherit}
-::-webkit-scrollbar{width:4px;height:4px}::-webkit-scrollbar-track{background:var(--bg2)}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px}::-webkit-scrollbar-thumb:hover{background:var(--gold)}
+img{display:block;max-width:100%}a{color:inherit;text-decoration:none}
+button,input,textarea{font-family:inherit;cursor:pointer}
+::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:var(--bg2)}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px}
 
-/* ── BUTTONS ─────────────────────────────────────────── */
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:none;border-radius:var(--radius);font-family:'DM Sans',sans-serif;font-weight:600;font-size:.80rem;letter-spacing:.08em;text-transform:uppercase;padding:11px 22px;transition:all .15s ease;white-space:nowrap}
-.btn-gold{background:var(--gold);color:#000}.btn-gold:hover{background:var(--gold2);transform:translateY(-1px)}.btn-gold:active{transform:translateY(0)}
+/* BUTTONS */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:none;border-radius:var(--r);font-weight:600;font-size:.80rem;letter-spacing:.06em;text-transform:uppercase;padding:10px 20px;transition:all .15s;white-space:nowrap;cursor:pointer}
+.btn-gold{background:var(--gold);color:#000}.btn-gold:hover{background:var(--gold2);transform:translateY(-1px)}
 .btn-ghost{background:transparent;border:1px solid var(--border2);color:var(--gold)}.btn-ghost:hover{border-color:var(--gold);background:var(--gold-dim)}
 .btn-danger{background:var(--red);color:#fff}.btn-danger:hover{filter:brightness(1.1)}
-.btn-sm{padding:7px 14px;font-size:.73rem}.btn-lg{padding:14px 32px;font-size:.86rem}
+.btn-sm{padding:7px 14px;font-size:.73rem}
 .btn:disabled{opacity:.5;cursor:not-allowed;transform:none!important}
 
-/* ── INPUTS ──────────────────────────────────────────── */
-.input{width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius);color:var(--text);font-size:.90rem;padding:11px 14px;outline:none;transition:border-color .2s}
-.input:focus{border-color:var(--gold)}textarea.input{resize:vertical;min-height:80px}
+/* INPUTS */
+.inp{width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-size:.9rem;padding:11px 14px;outline:none;transition:border-color .2s}
+.inp:focus{border-color:var(--gold)}
+textarea.inp{resize:vertical;min-height:80px}
 
-/* ── BADGE ───────────────────────────────────────────── */
-.badge{display:inline-flex;align-items:center;padding:4px 10px;border-radius:20px;font-size:.70rem;font-weight:700;letter-spacing:.10em;text-transform:uppercase}
-.badge-gold{background:var(--gold-dim2);color:var(--gold);border:1px solid var(--border2)}
-
-/* ── DIVIDER ─────────────────────────────────────────── */
-.divider{height:1px;background:var(--border);margin:20px 0}
-
-/* ── PROGRESS BAR ────────────────────────────────────── */
-.progress-bar{height:4px;background:var(--border);border-radius:2px;overflow:hidden}
-.progress-bar-fill{height:100%;background:linear-gradient(90deg,var(--gold),var(--gold2));border-radius:2px;transition:width .5s ease}
-
-/* ── SECTION LABEL ───────────────────────────────────── */
-.section-label{display:flex;align-items:center;gap:12px;color:var(--gold);font-size:.70rem;font-weight:600;letter-spacing:.20em;text-transform:uppercase;margin-bottom:20px}
-.section-label::before,.section-label::after{content:'';flex:1;max-width:56px;height:1px;background:linear-gradient(90deg,transparent,var(--gold))}
-.section-label::after{background:linear-gradient(90deg,var(--gold),transparent)}
-
-/* ── OVERLAY / MODAL ─────────────────────────────────── */
-.overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:500;display:flex;align-items:flex-end;justify-content:center;animation:fadeIn .2s ease}
+/* OVERLAY/MODAL */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:500;display:flex;align-items:flex-end;justify-content:center;animation:fadeIn .2s}
 .overlay.center{align-items:center}
-.modal{background:var(--bg2);border:1px solid var(--border2);border-radius:var(--radius-lg) var(--radius-lg) 0 0;padding:28px 24px 36px;width:100%;max-width:460px;animation:slideUp .3s cubic-bezier(.22,1,.36,1)}
-.overlay.center .modal{border-radius:var(--radius-lg);animation:scaleIn .25s cubic-bezier(.22,1,.36,1)}
-.modal-title{font-family:'Playfair Display',serif;font-size:1.25rem;color:var(--text);margin-bottom:6px}
-.modal-sub{font-size:.84rem;color:var(--text2);margin-bottom:24px}
-.modal-actions{display:flex;gap:10px;margin-top:20px}
-.modal-actions .btn{flex:1}
+.modal{background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r2) var(--r2) 0 0;padding:28px 24px 36px;width:100%;max-width:460px;animation:slideUp .3s cubic-bezier(.22,1,.36,1)}
+.overlay.center .modal{border-radius:var(--r2);animation:scaleIn .25s cubic-bezier(.22,1,.36,1)}
+.modal-title{font-family:'Playfair Display',serif;font-size:1.2rem;margin-bottom:6px}
+.modal-sub{font-size:.84rem;color:var(--text2);margin-bottom:20px}
+.modal-actions{display:flex;gap:10px;margin-top:20px}.modal-actions .btn{flex:1}
 
-/* ── SPINNER / LOADING ───────────────────────────────── */
-.spinner{width:36px;height:36px;border:2px solid var(--border);border-top-color:var(--gold);border-radius:50%;animation:spin .8s linear infinite}
-.loading-overlay{position:fixed;inset:0;background:var(--bg);z-index:2000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px}
-.loading-logo{font-family:'Playfair Display',serif;font-size:2rem;color:var(--gold);letter-spacing:.05em}
-.loading-steps{font-size:.82rem;color:var(--text2);text-align:center;max-width:280px;line-height:1.6}
+/* SPINNER */
+.spin{width:34px;height:34px;border:2px solid var(--border);border-top-color:var(--gold);border-radius:50%;animation:spinning .8s linear infinite}
+.spin-sm{width:16px;height:16px;border-width:2px}
 
-/* ── Q-BLOCK ─────────────────────────────────────────── */
-.q-block{background:var(--gold-dim);border:1px solid var(--border2);border-left:4px solid var(--gold);border-radius:0 var(--radius) var(--radius) 0;padding:24px;margin:32px 0}
-.q-block-header{display:flex;align-items:center;gap:8px;margin-bottom:14px}
-.q-dot{width:6px;height:6px;border-radius:50%;background:var(--gold);animation:pulse 1.8s ease-in-out infinite;flex-shrink:0}
-.q-badge{font-size:.63rem;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--gold)}
-.q-question{font-family:'Playfair Display',serif;font-style:italic;font-size:1.05rem;color:var(--text);line-height:1.6;margin-bottom:18px}
-.q-status-good{display:flex;align-items:center;gap:8px;color:var(--green);font-size:.8rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;padding:10px 14px;background:rgba(58,170,114,.08);border:1px solid rgba(58,170,114,.2);border-radius:var(--radius)}
-.q-status-close{color:var(--gold);font-size:.84rem;padding:12px 14px;background:var(--gold-dim);border:1px solid var(--border2);border-radius:var(--radius);margin-bottom:12px;line-height:1.5}
-.q-status-retry{color:var(--red);font-size:.84rem;padding:12px 14px;background:rgba(208,80,80,.08);border:1px solid rgba(208,80,80,.2);border-radius:var(--radius);margin-bottom:12px}
-.mcq-options{display:flex;flex-direction:column;gap:10px;margin-bottom:16px}
-.mcq-option{display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;transition:all .15s;text-align:left;color:var(--text);font-size:.9rem}
-.mcq-option:hover{border-color:var(--border2);background:var(--surface)}
-.mcq-option.selected{border-color:var(--gold);background:var(--gold-dim)}
-.mcq-option.correct{border-color:var(--green);background:rgba(58,170,114,.08)}
-.mcq-option.wrong{border-color:var(--red);background:rgba(208,80,80,.08)}
-.opt-letter{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--border2);color:var(--gold);font-size:.7rem;font-weight:700;flex-shrink:0}
+/* TOAST */
+#toasts{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:9000;display:flex;flex-direction:column;gap:8px;pointer-events:none;align-items:center}
+.toast{background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r);padding:11px 20px;font-size:.84rem;color:var(--text);box-shadow:0 8px 32px rgba(0,0,0,.5);animation:slideUp .3s;pointer-events:auto;white-space:nowrap}
 
-/* ── LOCKED BLUR / BOOKMARK ──────────────────────────── */
-.locked-blur{filter:blur(5px);user-select:none;pointer-events:none;transition:filter .5s ease}
-.bookmark-btn{position:fixed;right:0;top:50%;transform:translateY(-50%);background:var(--gold);color:#000;font-family:'DM Sans',sans-serif;font-size:.72rem;font-weight:700;letter-spacing:.06em;padding:8px 10px 12px;border-radius:6px 0 0 6px;cursor:pointer;border:none;writing-mode:vertical-rl;z-index:100;clip-path:polygon(0 0,100% 0,100% 85%,50% 100%,0 85%);transition:background .15s}
-.bookmark-btn:hover{background:var(--gold2)}
+/* PROGRESS */
+.pbar{height:4px;background:var(--border);border-radius:2px;overflow:hidden}
+.pbar-fill{height:100%;background:linear-gradient(90deg,var(--gold),var(--gold2));border-radius:2px;transition:width .5s ease}
 
-/* ── READER BODY ─────────────────────────────────────── */
-.reader-page-text{font-family:'Crimson Pro',serif;font-size:1.08rem;line-height:1.85;color:var(--text);white-space:pre-wrap;word-break:break-word;margin-bottom:8px}
-.reader-page-label{text-align:center;color:var(--text3);font-size:.70rem;letter-spacing:.12em;margin-bottom:16px;user-select:none}
-.quote-btn{position:fixed;bottom:28px;right:20px;width:48px;height:48px;border-radius:50%;background:var(--gold);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 20px rgba(222,173,42,.45);z-index:50;transition:transform .15s ease,box-shadow .15s ease}
-.quote-btn:hover{transform:scale(1.1);box-shadow:0 6px 28px rgba(222,173,42,.6)}
+/* DIVIDER */
+.divider{height:1px;background:var(--border);margin:18px 0}
 
-/* ── TOAST ───────────────────────────────────────────── */
-#toast-container{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:9000;display:flex;flex-direction:column;gap:8px;pointer-events:none}
-.toast{background:var(--bg2);border:1px solid var(--border2);border-radius:var(--radius);padding:12px 20px;font-size:.84rem;color:var(--text);box-shadow:0 8px 32px rgba(0,0,0,.4);animation:slideUp .3s ease;pointer-events:auto}
+/* SECTION LABEL */
+.sec-lbl{display:flex;align-items:center;gap:10px;color:var(--gold);font-size:.70rem;font-weight:600;letter-spacing:.20em;text-transform:uppercase;margin-bottom:18px}
+.sec-lbl::before,.sec-lbl::after{content:'';flex:1;max-width:50px;height:1px;background:linear-gradient(90deg,transparent,var(--gold))}
+.sec-lbl::after{background:linear-gradient(90deg,var(--gold),transparent)}
 
-/* ── ANIMATIONS ──────────────────────────────────────── */
-@keyframes fadeIn{from{opacity:0}to{opacity:1}}
-@keyframes slideUp{from{transform:translateY(40px);opacity:0}to{transform:translateY(0);opacity:1}}
-@keyframes scaleIn{from{transform:scale(.95);opacity:0}to{transform:scale(1);opacity:1}}
-@keyframes spin{to{transform:rotate(360deg)}}
-@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.8)}}
+/* LOADING */
+.loading{position:fixed;inset:0;background:var(--bg);z-index:2000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px}
+.loading-logo{font-family:'Playfair Display',serif;font-size:2rem;color:var(--gold)}
+.loading-steps{font-size:.82rem;color:var(--text2);text-align:center;line-height:2}
 
-/* ── SCREENS ─────────────────────────────────────────── */
-.screen{display:none}
-.screen.active{display:block}
+/* DROPZONE */
+.dropzone{border:2px dashed var(--border2);border-radius:var(--r2);padding:36px 24px;text-align:center;background:var(--gold-dim);transition:all .2s;position:relative;cursor:pointer}
+.dropzone:hover,.dropzone.over{border-color:var(--gold);background:var(--gold-dim2)}
+.dropzone input[type=file]{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
 
-/* ── DROPZONE ────────────────────────────────────────── */
-.dropzone{border:2px dashed var(--border2);border-radius:var(--radius-lg);padding:32px 24px;text-align:center;cursor:pointer;transition:all .2s;background:var(--gold-dim)}
-.dropzone:hover,.dropzone.drag{border-color:var(--gold);background:var(--gold-dim2)}
-.dropzone-icon{font-size:2rem;margin-bottom:12px}
-.dropzone-title{font-family:'Playfair Display',serif;font-size:1.1rem;color:var(--text);margin-bottom:6px}
-.dropzone-sub{font-size:.82rem;color:var(--text2)}
-
-/* ── BOOK CARD ───────────────────────────────────────── */
-.books-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:16px}
-.book-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;transition:border-color .2s,transform .2s;cursor:pointer}
+/* BOOK GRID */
+.books-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:16px}
+.book-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);overflow:hidden;transition:border-color .2s,transform .2s;cursor:pointer}
 .book-card:hover{border-color:var(--border2);transform:translateY(-2px)}
 .book-cover{aspect-ratio:2/3;background:var(--bg3);position:relative;overflow:hidden}
 .book-cover img{width:100%;height:100%;object-fit:cover}
-.book-cover-empty{width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:var(--surface);font-size:2rem}
-.book-cover-overlay{position:absolute;inset:0;background:rgba(3,8,16,.5);display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .2s;color:var(--gold);font-size:1.5rem}
-.book-card:hover .book-cover-overlay{opacity:1}
+.book-cover-empty{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:2.5rem}
+.book-cover-ov{position:absolute;inset:0;background:rgba(3,8,16,.5);display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .2s;color:var(--gold);font-size:1.5rem}
+.book-card:hover .book-cover-ov{opacity:1}
 .book-meta{padding:10px 12px 4px}
-.book-title{font-family:'Playfair Display',serif;font-size:.82rem;font-weight:600;color:var(--text);line-height:1.3;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;margin-bottom:3px}
-.book-author{font-size:.72rem;color:var(--text3)}
+.book-title{font-family:'Playfair Display',serif;font-size:.82rem;font-weight:700;line-height:1.3;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;margin-bottom:2px}
+.book-author{font-size:.70rem;color:var(--text3)}
 .book-pct{font-size:.68rem;color:var(--gold);font-weight:600;margin-top:4px}
 .book-actions{display:flex;justify-content:flex-end;gap:4px;padding:4px 8px 8px}
-.book-action-btn{background:none;border:none;color:var(--text3);font-size:.8rem;cursor:pointer;padding:4px 6px;border-radius:4px;transition:color .15s}
-.book-action-btn:hover{color:var(--gold)}
-.book-action-btn.del:hover{color:var(--red)}
+.book-act{background:none;border:none;color:var(--text3);font-size:.8rem;padding:4px 6px;border-radius:4px;transition:color .15s}
+.book-act:hover{color:var(--gold)}.book-act.del:hover{color:var(--red)}
 
-/* ── CHAP PANEL ──────────────────────────────────────── */
+/* Q-BLOCK */
+.qblock{background:var(--gold-dim);border:1px solid var(--border2);border-left:4px solid var(--gold);border-radius:0 var(--r) var(--r) 0;padding:22px;margin:28px 0}
+.qblock-hdr{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.qdot{width:6px;height:6px;border-radius:50%;background:var(--gold);flex-shrink:0;animation:pulse 2s infinite}
+.qbadge{font-size:.62rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--gold)}
+.qquestion{font-family:'Playfair Display',serif;font-style:italic;font-size:1rem;line-height:1.65;margin-bottom:16px}
+.q-good{display:flex;align-items:center;gap:8px;color:var(--green);font-size:.8rem;font-weight:600;padding:10px 14px;background:rgba(58,170,114,.08);border:1px solid rgba(58,170,114,.2);border-radius:var(--r)}
+.q-close{color:var(--gold);font-size:.84rem;padding:10px 14px;background:var(--gold-dim);border:1px solid var(--border2);border-radius:var(--r);margin-bottom:12px;line-height:1.5}
+.q-retry{color:var(--red);font-size:.84rem;padding:10px 14px;background:rgba(208,80,80,.08);border:1px solid rgba(208,80,80,.2);border-radius:var(--r);margin-bottom:12px}
+.mcq-opts{display:flex;flex-direction:column;gap:8px;margin-bottom:14px}
+.mcq-opt{display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;transition:all .15s;text-align:left;color:var(--text);font-size:.88rem}
+.mcq-opt:hover{border-color:var(--border2)}
+.mcq-opt.sel{border-color:var(--gold);background:var(--gold-dim)}
+.mcq-opt.ok{border-color:var(--green);background:rgba(58,170,114,.08)}
+.mcq-opt.bad{border-color:var(--red);background:rgba(208,80,80,.08)}
+.opt-ltr{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--border2);color:var(--gold);font-size:.7rem;font-weight:700;flex-shrink:0}
+
+/* READER */
+.page-text{font-family:'Playfair Display',serif;font-size:1.05rem;line-height:1.85;color:rgba(255,255,255,.9);white-space:pre-wrap;word-break:break-word}
+.page-lbl{text-align:center;color:var(--text3);font-size:.68rem;letter-spacing:.12em;margin-bottom:14px;user-select:none}
+.locked-blur{filter:blur(6px);user-select:none;pointer-events:none}
+.bmark{position:fixed;right:0;top:50%;transform:translateY(-50%);background:var(--gold);color:#000;font-size:.68rem;font-weight:700;letter-spacing:.06em;padding:8px 9px 13px;border-radius:6px 0 0 6px;writing-mode:vertical-rl;z-index:100;clip-path:polygon(0 0,100% 0,100% 85%,50% 100%,0 85%);border:none;cursor:pointer;transition:background .15s}
+.bmark:hover{background:var(--gold2)}
+.qbtn{position:fixed;bottom:28px;right:20px;width:48px;height:48px;border-radius:50%;background:var(--gold);border:none;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 20px rgba(212,175,55,.45);z-index:50;transition:transform .15s}
+.qbtn:hover{transform:scale(1.1)}
+
+/* CHAP PANEL */
 .chap-panel{position:fixed;inset:0;z-index:300;display:flex}
-.chap-backdrop{flex:1;background:rgba(0,0,0,.5)}
+.chap-back{flex:1;background:rgba(0,0,0,.5)}
 .chap-drawer{width:280px;background:var(--bg2);border-left:1px solid var(--border2);overflow-y:auto;animation:slideLeft .25s cubic-bezier(.22,1,.36,1)}
-@keyframes slideLeft{from{transform:translateX(100%)}to{transform:translateX(0)}}
-.chap-item{display:flex;align-items:center;gap:12px;padding:14px 20px;cursor:pointer;border-bottom:1px solid var(--border);transition:background .15s}
+.chap-item{display:flex;align-items:flex-start;gap:12px;padding:14px 20px;cursor:pointer;border-bottom:1px solid var(--border);transition:background .15s}
 .chap-item:hover{background:var(--gold-dim)}
-.chap-item.locked{opacity:.55}
-.chap-lock{font-size:.75rem}
-.chap-name{font-size:.85rem;color:var(--text);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.chap-page{font-size:.70rem;color:var(--text3)}
+.chap-item.locked{opacity:.5}
 
-/* ── SHARE MODAL CANVAS ──────────────────────────────── */
+/* SCORE WIDGET */
+.score-ring{cursor:pointer;display:flex;align-items:center;gap:7px}
+
+/* SHARE */
 #share-canvas-preview{width:100%;border-radius:8px;border:1px solid var(--border2);margin-bottom:12px}
-.share-box{display:flex;align-items:center;justify-content:space-between;background:var(--bg);border:1px solid var(--border2);border-radius:var(--radius);padding:10px 14px;margin-bottom:10px}
-.share-msg{font-size:.86rem;color:var(--gold);font-weight:700;letter-spacing:.02em}
-.share-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
-/* ── MOBILE OTIMIZAÇÕES ──────────────────────────────── */
-@media (max-width: 768px) {
-  /* Touch targets maiores */
-  .btn { min-height: 44px; }
-  .btn-sm { min-height: 38px; padding: 8px 14px; }
-  /* Texto do leitor menor no mobile */
-  .reader-page-text { font-size: 1rem; line-height: 1.75; }
-  /* Navbar compacta */
-  .bookmark-btn { font-size: .65rem; padding: 6px 8px 10px; }
-  /* Q-block mais compacto */
-  .q-block { padding: 18px 16px; }
-  .q-question { font-size: .95rem; }
-  /* Grid de livros: 2 colunas no mobile */
-  .books-grid { grid-template-columns: repeat(2, 1fr) !important; }
+
+/* ANIMATIONS */
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes slideUp{from{transform:translateY(40px);opacity:0}to{transform:translateY(0);opacity:1}}
+@keyframes scaleIn{from{transform:scale(.95);opacity:0}to{transform:scale(1);opacity:1}}
+@keyframes slideLeft{from{transform:translateX(100%)}to{transform:translateX(0)}}
+@keyframes spinning{to{transform:rotate(360deg)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* MOBILE */
+@media(max-width:768px){
+  .btn{min-height:44px}.btn-sm{min-height:38px}
+  .page-text{font-size:.97rem;line-height:1.75}
+  .books-grid{grid-template-columns:repeat(2,1fr)!important}
+  .qblock{padding:16px}
 }
 </style>
 </head>
 <body>
-
-<div id="toast-container"></div>
+<div id="toasts"></div>
 <div id="app"></div>
 
 <script>
-// ═══════════════════════════════════════════════════════
-// CONFIG
-// ═══════════════════════════════════════════════════════
-const SUPABASE_URL = 'https://lmwjkmtdyalqvloudlla.supabase.co'
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxtd2prbXRkeWFscXZsb3VkbGxhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM1NDQ2MzMsImV4cCI6MjA4OTEyMDYzM30.e4D-Cm2QJ2dxqtdoNUBMPq2sD5WbCo4eKYCxmYR36qE'
-const LOGO_URL     = 'https://i.ibb.co/Xkfz5QKL/sua-logo-stepbook.png'
-const CARD_BASE    = 'https://i.ibb.co/tpfkJpDG/dreamina-2026-03-15-6664-Remove-the-central-quote-text-Se-desej.jpg'
-const VALID_KEYS   = {
-  'STEP-JAN26-X7K2':1,'STEP-FEV26-M3P9':1,'STEP-MAR26-Q5R1':1,'STEP-ABR26-T8W4':1,
-  'STEP-MAI26-Y2N6':1,'STEP-JUN26-K9P3':1,'STEP-JUL26-H4F7':1,'STEP-AGO26-B6D1':1,
-  'STEP-SET26-C3M8':1,'STEP-OUT26-Z5R2':1,'STEP-NOV26-W7K9':1,'STEP-DEZ26-J1P4':1,
-}
+// ─── CONFIG ────────────────────────────────────────────
+const SB_URL  = 'https://lmwjkmtdyalqvloudlla.supabase.co'
+const SB_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxtd2prbXRkeWFscXZsb3VkbGxhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM1NDQ2MzMsImV4cCI6MjA4OTEyMDYzM30.e4D-Cm2QJ2dxqtdoNUBMPq2sD5WbCo4eKYCxmYR36qE'
+const LOGO    = 'https://i.ibb.co/Xkfz5QKL/sua-logo-stepbook.png'
+const KEYS    = {'STEP-JAN26-X7K2':1,'STEP-FEV26-M3P9':1,'STEP-MAR26-Q5R1':1,'STEP-ABR26-T8W4':1,'STEP-MAI26-Y2N6':1,'STEP-JUN26-K9P3':1,'STEP-JUL26-H4F7':1,'STEP-AGO26-B6D1':1,'STEP-SET26-C3M8':1,'STEP-OUT26-Z5R2':1,'STEP-NOV26-W7K9':1,'STEP-DEZ26-J1P4':1}
 
-// PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc =
-  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'
+// ─── INIT ───────────────────────────────────────────────
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'
+const db = supabase.createClient(SB_URL, SB_KEY, {auth:{persistSession:true,autoRefreshToken:true}})
 
-// ═══════════════════════════════════════════════════════
-// STATE
-// ═══════════════════════════════════════════════════════
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
-  auth: { persistSession: true, autoRefreshToken: true }
-})
-
+// ─── STATE ──────────────────────────────────────────────
 const S = {
-  user: null,
-  plan: 'free',
-  books: [],
-  currentBook: null,
-  pages: [],
-  questions: [],
-  progress: 0,
-  screen: 'loading', // loading | auth | library | importing | reader
-  chapOpen: false,
-  shareOpen: false,
-  shareMode: 'feed',
-  quoteText: '',
-  reflPrompt: null,
-  importStep: 0,
-  importError: null,
+  user:null, plan:'free', books:[], book:null,
+  pages:[], questions:[], progress:0,
+  screen:'loading', quoteText:'', reflPrompt:null,
+  importStep:0, importError:null, importMsg:'',
 }
 
-// ═══════════════════════════════════════════════════════
-// TOAST
-// ═══════════════════════════════════════════════════════
-function toast(msg, dur = 3000) {
+// ─── UTILS ──────────────────────────────────────────────
+const $ = id => document.getElementById(id)
+const esc = s => s ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') : ''
+const isMob = () => /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+
+function toast(msg, dur=3000) {
   const el = document.createElement('div')
-  el.className = 'toast'
-  el.textContent = msg
-  document.getElementById('toast-container').appendChild(el)
-  setTimeout(() => el.remove(), dur)
+  el.className='toast'; el.textContent=msg
+  $('toasts').appendChild(el)
+  setTimeout(()=>el.remove(), dur)
 }
 
-// ═══════════════════════════════════════════════════════
-// AUTH
-// ═══════════════════════════════════════════════════════
-async function initAuth() {
-  const { data, error } = await sb.auth.getSession()
-  if (error || !data.session) {
-    await sb.auth.signOut().catch(() => {})
-    S.user = null
-  } else {
-    S.user = data.session.user
-    await loadPlan()
-  }
+function render(screen) {
+  S.screen = screen
+  const app = $('app')
+  if (screen==='loading')   return app.innerHTML = renderLoading()
+  if (screen==='auth')      { app.innerHTML = renderAuth(); bindAuth(); return }
+  if (screen==='library')   { app.innerHTML = renderLibrary(); bindLibrary(); return }
+  if (screen==='importing') return app.innerHTML = renderImporting()
+  if (screen==='reader')    { app.innerHTML = renderReader(); bindReader(); return }
+}
 
-  sb.auth.onAuthStateChange(async (event, session) => {
-    if (event === 'SIGNED_IN') {
+// ─── AUTH ───────────────────────────────────────────────
+async function initAuth() {
+  try {
+    const { data } = await db.auth.getSession()
+    if (data?.session?.user) {
+      S.user = data.session.user
+      await loadPlan()
+    } else {
+      S.user = null
+    }
+  } catch { S.user = null }
+
+  db.auth.onAuthStateChange(async (event, session) => {
+    if (event==='SIGNED_IN' && session?.user) {
       S.user = session.user
       await loadPlan()
       await loadBooks()
       render('library')
-    } else if (event === 'SIGNED_OUT') {
-      S.user = null
-      S.plan = 'free'
-      S.books = []
+    } else if (event==='SIGNED_OUT') {
+      S.user=null; S.plan='free'; S.books=[]
       render('auth')
-    } else if (event === 'TOKEN_REFRESHED') {
-      S.user = session?.user ?? null
     }
   })
-  render(S.user ? 'library' : 'auth')
 }
 
-async function signIn(email, password) {
-  const { error } = await sb.auth.signInWithPassword({ email, password })
-  if (error) throw error
-}
-async function signUp(email, password) {
-  const { error } = await sb.auth.signUp({ email, password })
-  if (error) throw error
-  return true
-}
-async function signOut() {
-  await sb.auth.signOut()
-}
-
-// ═══════════════════════════════════════════════════════
-// PLAN
-// ═══════════════════════════════════════════════════════
 async function loadPlan() {
   if (!S.user) return
-  const { data } = await sb.from('profiles').select('plan,plan_expires_at').eq('id', S.user.id).single()
-  if (data?.plan === 'pro') {
-    const expired = data.plan_expires_at && new Date(data.plan_expires_at) < new Date()
-    S.plan = expired ? 'free' : 'pro'
-  }
+  try {
+    const { data } = await db.from('profiles').select('plan,plan_expires_at').eq('id',S.user.id).single()
+    S.plan = (data?.plan==='pro' && (!data.plan_expires_at || new Date(data.plan_expires_at)>new Date())) ? 'pro' : 'free'
+  } catch { S.plan='free' }
 }
+
 async function activateKey(key) {
   const k = key.trim().toUpperCase()
-  if (!VALID_KEYS[k]) return { ok: false, msg: 'Chave inválida.' }
-  const { data: used } = await sb.from('used_keys').select('id').eq('key', k).single()
-  if (used) return { ok: false, msg: 'Chave já utilizada.' }
-  const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
-  await sb.from('profiles').update({ plan: 'pro', plan_expires_at: expiresAt }).eq('id', S.user.id)
-  await sb.from('used_keys').insert({ key: k, user_id: S.user.id })
-  S.plan = 'pro'
-  return { ok: true, msg: `Pro ativado! Válido até ${new Date(expiresAt).toLocaleDateString('pt-BR')}.` }
+  if (!KEYS[k]) return {ok:false,msg:'Chave inválida.'}
+  const { data:used } = await db.from('used_keys').select('id').eq('key',k).single()
+  if (used) return {ok:false,msg:'Chave já utilizada.'}
+  const exp = new Date(Date.now()+30*86400000).toISOString()
+  await db.from('profiles').update({plan:'pro',plan_expires_at:exp}).eq('id',S.user.id)
+  await db.from('used_keys').insert({key:k,user_id:S.user.id})
+  S.plan='pro'
+  return {ok:true,msg:`Pro ativado! Válido até ${new Date(exp).toLocaleDateString('pt-BR')}.`}
 }
 
-// ═══════════════════════════════════════════════════════
-// BOOKS
-// ═══════════════════════════════════════════════════════
+// ─── BOOKS DB ───────────────────────────────────────────
 async function loadBooks() {
   if (!S.user) return
-  const { data } = await sb.from('books').select('*').eq('user_id', S.user.id).order('added_at', { ascending: false })
+  const { data } = await db.from('books').select('*').eq('user_id',S.user.id).order('added_at',{ascending:false})
   S.books = data ?? []
 }
-async function saveBook(book) {
-  const { pages, cover_b64, ...meta } = book   // nunca enviar cover_b64 nem pages ao banco
-  const row = { ...meta, user_id: S.user.id, updated_at: new Date().toISOString() }
-  const { data, error } = await sb.from('books').upsert(row, { onConflict: 'id' }).select().single()
-  if (error) throw error
-  await loadBooks()
-  return data
-}
-async function deleteBook(bookId) {
-  await sb.from('books').delete().eq('id', bookId)
-  await sb.storage.from('pdfs').remove([`${S.user.id}/${bookId}.pdf`])
-  await sb.storage.from('covers').remove([`${S.user.id}/${bookId}.jpg`])
-  await loadBooks()
-}
-async function uploadPDF(bookId, file) {
-  const path = `${S.user.id}/${bookId}.pdf`
-  const { error } = await sb.storage.from('pdfs').upload(path, file, { upsert: true })
-  if (error) throw error
-  return path
-}
-async function uploadCover(bookId, file) {
-  const path = `${S.user.id}/${bookId}.jpg`
-  const { error } = await sb.storage.from('covers').upload(path, file, { upsert: true, contentType: 'image/jpeg' })
-  if (error) throw error
-  const { data } = sb.storage.from('covers').getPublicUrl(path)
-  return data.publicUrl
-}
-async function updateProgress(bookId, progress) {
-  await sb.from('books').update({ progress }).eq('id', bookId)
-  S.books = S.books.map(b => b.id === bookId ? { ...b, progress } : b)
-  if (S.currentBook?.id === bookId) S.currentBook.progress = progress
-}
-async function updateQuestions(bookId, questions) {
-  await sb.from('books').update({ questions }).eq('id', bookId)
-  S.questions = questions
-  S.books = S.books.map(b => b.id === bookId ? { ...b, questions } : b)
-}
-async function saveReflection(bookId, reflection) {
-  const book = S.books.find(b => b.id === bookId)
-  const refs = [...(book?.reflections ?? []), reflection]
-  await sb.from('books').update({ reflections: refs }).eq('id', bookId)
-  S.books = S.books.map(b => b.id === bookId ? { ...b, reflections: refs } : b)
-  if (S.currentBook?.id === bookId) S.currentBook.reflections = refs
-}
-async function loadPages(bookId) {
-  const { data } = await sb.from('book_pages').select('page_num,text').eq('book_id', bookId).order('page_num')
-  if (data) S.pages = data.map(r => ({ num: r.page_num, text: r.text }))
+
+async function deleteBook(id) {
+  await db.from('books').delete().eq('id',id)
+  await db.storage.from('pdfs').remove([`${S.user.id}/${id}.pdf`]).catch(()=>{})
+  await db.storage.from('covers').remove([`${S.user.id}/${id}.jpg`]).catch(()=>{})
 }
 
-// ═══════════════════════════════════════════════════════
-// PDF PROCESSING
-// ═══════════════════════════════════════════════════════
+async function updateProgress(id, pct) {
+  await db.from('books').update({progress:pct}).eq('id',id).catch(()=>{})
+  S.books = S.books.map(b=>b.id===id?{...b,progress:pct}:b)
+  if (S.book?.id===id) S.book.progress=pct
+}
+
+async function updateQuestions(id, qs) {
+  await db.from('books').update({questions:qs}).eq('id',id).catch(()=>{})
+  S.books = S.books.map(b=>b.id===id?{...b,questions:qs}:b)
+}
+
+async function saveReflection(id, ref) {
+  const book = S.books.find(b=>b.id===id)
+  const refs = [...(book?.reflections??[]), ref]
+  await db.from('books').update({reflections:refs}).eq('id',id).catch(()=>{})
+  S.books = S.books.map(b=>b.id===id?{...b,reflections:refs}:b)
+  if (S.book?.id===id) S.book.reflections=refs
+}
+
+async function loadPages(id) {
+  const { data } = await db.from('book_pages').select('page_num,text').eq('book_id',id).order('page_num')
+  if (data) S.pages = data.map(r=>({num:r.page_num,text:r.text}))
+}
+
+// ─── PDF PROCESSING ─────────────────────────────────────
 async function readPDF(file) {
-  const buf  = await file.arrayBuffer()
-  const pdf  = await pdfjsLib.getDocument({ data: buf }).promise
+  const buf = await file.arrayBuffer()
+  const pdf = await pdfjsLib.getDocument({data:buf}).promise
   const total = pdf.numPages
-  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
-
-  // Mobile: processar em batches de 10 para não explodir a RAM
-  // Desktop: paralelo total (mais rápido)
-  const BATCH = isMobile ? 10 : total
+  const mob = isMob()
+  const BATCH = mob ? 8 : total
   const pages = []
 
-  for (let start = 0; start < total; start += BATCH) {
-    const end = Math.min(start + BATCH, total)
+  for (let s=0; s<total; s+=BATCH) {
+    const end = Math.min(s+BATCH, total)
     const batch = await Promise.all(
-      Array.from({ length: end - start }, (_, i) =>
-        pdf.getPage(start + i + 1).then(async page => {
-          const content = await page.getTextContent()
-          const text    = content.items.map(x => x.str).join(' ').trim()
-          return { num: start + i + 1, text }
+      Array.from({length:end-s}, (_,i) =>
+        pdf.getPage(s+i+1).then(async pg => {
+          const c = await pg.getTextContent()
+          return {num:s+i+1, text:c.items.map(x=>x.str).join(' ').trim()}
         })
       )
     )
     pages.push(...batch)
-    // Atualizar progress no mobile
-    if (isMobile) {
-      const pct = Math.round((pages.length / total) * 100)
-      const stepEl = document.querySelector('.loading-steps div')
-      if (stepEl) stepEl.textContent = `⟳ Lendo o PDF… ${pct}%`
-      // Yield para o browser não travar a UI
-      await new Promise(r => setTimeout(r, 0))
+    if (mob) {
+      S.importMsg = `Lendo PDF… ${pages.length}/${total} páginas`
+      updateImportUI()
+      await new Promise(r=>setTimeout(r,0))
     }
   }
+  return {pages, total}
+}
 
-  // Capa só no desktop — no mobile economizar memória
-  let coverB64 = null
-  if (!isMobile) {
-    try {
-      const page     = await pdf.getPage(1)
-      const viewport = page.getViewport({ scale: 0.5 })
-      const canvas   = document.createElement('canvas')
-      canvas.width   = viewport.width; canvas.height = viewport.height
-      await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise
-      coverB64 = canvas.toDataURL('image/jpeg', 0.6).split(',')[1]
-    } catch {}
-  }
-
-  return { pages, coverB64, totalPages: total }
+function cleanPages(pages) {
+  return pages.map(p=>({...p,
+    text:p.text
+      .replace(/(\w)\s+(\w)\s*-\s*/g,'$1$2')
+      .replace(/-\n(\w)/g,'$1')
+      .replace(/([a-záàâãéèêíïóôõöúüçñ,;])\n([a-záàâãéèêíïóôõöúüçñ])/gi,'$1 $2')
+      .replace(/ {2,}/g,' ').trim()
+  }))
 }
 
 function detectChapters(pages) {
-  const patterns = [
+  const pats = [
     /^(cap[íi]tulo\s+[\divxlcdmIVXLCDM]+[.\s:])/i,
     /^(chapter\s+\d+)/i,
     /^(parte\s+[\divxlcdmIVXLCDM]+)/i,
     /^(\d{1,2}\.\s{1,3}[A-ZÁÀÂÃÉÈÊÍÏÓÔÕÖÚÜ][^\n]{3,60})/m,
   ]
-  const chapters = []
-  for (const page of pages) {
-    const first = page.text.split(/[\n.]/)[0].trim().slice(0, 100)
-    for (const re of patterns) {
-      if (re.test(first)) {
-        chapters.push({ title: first.slice(0, 80), pageNum: page.num, locked: false })
-        break
-      }
-    }
+  const found = []
+  for (const p of pages) {
+    const first = p.text.split(/[\n.]/)[0].trim().slice(0,100)
+    if (pats.some(re=>re.test(first))) found.push({title:first.slice(0,80),pageNum:p.num})
   }
-  if (chapters.length < 2) {
-    // Fallback: seções iguais — cap 1 livre, depois alterna
-    const count = Math.min(8, Math.max(4, Math.floor(pages.length / 10)))
-    const step  = Math.floor(pages.length / count)
-    return Array.from({ length: count }, (_, i) => ({
-      title:   `Seção ${i + 1}`,
-      pageNum: pages[i * step]?.num ?? 1,
-      locked:  i > 0,  // apenas cap 1 livre, todos os outros bloqueados
-    }))
+  if (found.length < 2) {
+    const count = Math.min(8, Math.max(4, Math.floor(pages.length/10)))
+    const step  = Math.floor(pages.length/count)
+    return Array.from({length:count},(_,i)=>({title:`Seção ${i+1}`,pageNum:pages[i*step]?.num??1,locked:i>0}))
   }
-  // Cap 1 sempre livre. A partir do 2º, capítulos ímpares (2º, 4º...) são bloqueados
-  return chapters.map((c, i) => ({ ...c, locked: i > 0 }))  // cap 1 livre, resto bloqueado
+  return found.map((c,i)=>({...c,locked:i>0}))
 }
 
-function injectAutoMCQ(questions, total) {
-  const pts = [
-    { idx: Math.floor(total*.25), label:'25%', hint:'na primeira parte do livro' },
-    { idx: Math.round(total*.50), label:'50%', hint:'na metade do livro' },
-    { idx: Math.round(total*.75), label:'75%', hint:'nos três quartos do livro' },
-    { idx: total-1,               label:'100%', hint:'ao final do livro' },
-  ]
+function injectCheckpoints(qs, total) {
+  const pts = [Math.floor(total*.25),Math.round(total*.5),Math.round(total*.75),total-1]
   for (const pt of pts) {
-    // Não injeta se já há pergunta no raio de 8 páginas
-    if (!questions.some(q => Math.abs(q.beforePage - pt.idx) <= 8)) {
-      // Garante que o beforePage não coincide com nenhuma pergunta existente
-      let bPage = pt.idx
-      while (questions.some(q => q.beforePage === bPage)) bPage++
-      questions.push({
-        beforePage: bPage, qtype:'mcq', type:'Checkpoint',
-        question: `Pausa ${pt.label} — Você chegou ${pt.hint}. Qual afirmação melhor representa sua experiência com a leitura até aqui?`,
-        options: [
-          'Estou compreendendo bem o conteúdo e consigo relacioná-lo à minha vida',
-          'Estou lendo mas ainda não conectei as ideias com clareza'
-        ],
-        correct: 0, answered: false, answer: null, quality: null, _auto: true,
-      })
+    if (!qs.some(q=>Math.abs(q.beforePage-pt)<=8)) {
+      let bp=pt; while(qs.some(q=>q.beforePage===bp)) bp++
+      qs.push({beforePage:bp,qtype:'mcq',type:'Checkpoint',
+        question:'Pausa de compreensão — Qual afirmação representa melhor sua experiência até aqui?',
+        options:['Estou compreendendo bem e consigo relacionar o conteúdo à minha vida','Ainda não conectei bem as ideias'],
+        correct:0,answered:false,answer:null,quality:null,_auto:true})
     }
   }
-
-  // Deduplicar: se duas perguntas têm mesmo beforePage, deslocar a segunda
-  const sorted = questions.sort((a,b) => a.beforePage - b.beforePage)
-  for (let i = 1; i < sorted.length; i++) {
-    if (sorted[i].beforePage <= sorted[i-1].beforePage) {
-      sorted[i].beforePage = sorted[i-1].beforePage + 1
-    }
-  }
+  const sorted = qs.sort((a,b)=>a.beforePage-b.beforePage)
+  for (let i=1;i<sorted.length;i++) if(sorted[i].beforePage<=sorted[i-1].beforePage) sorted[i].beforePage=sorted[i-1].beforePage+1
   return sorted
 }
 
-async function fetchBookMeta(title) {
+async function fetchMeta(title) {
   try {
-    const res  = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(title)}&maxResults=1`)
-    const data = await res.json()
-    const item = data.items?.[0]?.volumeInfo
-    if (!item) return {}
-    return { title: item.title||title, author: item.authors?.[0]||'Autor desconhecido', description: item.description||'', coverUrl: item.imageLinks?.thumbnail||'' }
+    const r = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(title)}&maxResults=1`)
+    const d = await r.json()
+    const v = d.items?.[0]?.volumeInfo
+    if (!v) return {}
+    return {title:v.title||title,author:v.authors?.[0]||'',description:v.description||'',coverUrl:v.imageLinks?.thumbnail||''}
   } catch { return {} }
 }
 
-function guessEmoji(title) {
-  const t = title.toLowerCase()
-  if (/psicolog|mente|comportamento|habit/.test(t)) return '🧠'
-  if (/lider|gestão|empresa|negócio|empreend/.test(t)) return '💼'
-  if (/financ|invest|dinheiro|riqueza/.test(t)) return '💰'
-  if (/filosofia|plato|aristotel|estoic/.test(t)) return '🏛️'
-  if (/história|guerra|impér/.test(t)) return '⚔️'
-  if (/romance|amor|relacionamento/.test(t)) return '❤️'
-  if (/ciência|física|biolog|evolução/.test(t)) return '🔬'
-  if (/programação|código|software|tech/.test(t)) return '💻'
-  return '📖'
+function guessEmoji(t='') {
+  const s=t.toLowerCase()
+  if(/psicolog|mente|habit/.test(s))return'🧠'
+  if(/lider|gestão|negócio|empresa/.test(s))return'💼'
+  if(/financ|invest|dinheiro/.test(s))return'💰'
+  if(/filosofia|estoic|plato/.test(s))return'🏛️'
+  if(/história|guerra/.test(s))return'⚔️'
+  if(/romance|amor/.test(s))return'❤️'
+  if(/ciência|física|biolog/.test(s))return'🔬'
+  if(/código|software|programação/.test(s))return'💻'
+  return'📖'
 }
 
 function cleanTitle(t='') {
   return t.replace(/[-_]/g,' ').replace(/\.(pdf|txt)$/i,'').replace(/\s+/g,' ').trim()
 }
 
-// Limpeza local de artefatos de PDF — roda ANTES da IA, sem timeout
-function cleanTextLocal(pages) {
-  return pages.map(p => ({
-    ...p,
-    text: p.text
-      // Remove hifenização com espaços: "co n -" → "con", "rea l -" → "real"
-      .replace(/(\w)\s+(\w)\s*-\s*/g, '$1$2')
-      // Remove hífen no fim de linha seguido de palavra
-      .replace(/-\n(\w)/g, '$1')
-      // Remove quebras de linha no meio de frases (mantém parágrafo duplo)
-      .replace(/([a-záàâãéèêíïóôõöúüçñ,;])\n([a-záàâãéèêíïóôõöúüçñ])/gi, '$1 $2')
-      // Remove espaços múltiplos
-      .replace(/  +/g, ' ')
-      .trim()
-  }))
-}
-
-// ═══════════════════════════════════════════════════════
-// AI
-// ═══════════════════════════════════════════════════════
+// ─── AI ─────────────────────────────────────────────────
 async function callAI(action, payload) {
-  const res = await fetch('/api/ai', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ action, payload })
-  })
-  if (!res.ok) throw new Error(`AI error: ${res.status}`)
-  const data = await res.json()
-  if (data.error) throw new Error(data.error)
-  return data.result
+  const r = await fetch('/api/ai',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,payload})})
+  if (!r.ok) throw new Error(`AI ${r.status}`)
+  const d = await r.json()
+  if (d.error) throw new Error(d.error)
+  return d.result
 }
 
-async function cleanTextAI(pages, title) {
-  const BATCH = 6; const cleaned = []
-  for (let i = 0; i < pages.length; i += BATCH) {
-    const batch = pages.slice(i, i+BATCH)
-    const text  = batch.map(p => `[PAGE ${p.num}]\n${p.text}`).join('\n\n')
-    try {
-      const result = await callAI('cleanText', { text, title })
-      const parsed = typeof result === 'string' ? JSON.parse(result) : result
-      cleaned.push(...parsed)
-    } catch { cleaned.push(...batch) }
-  }
-  return cleaned
-}
-
-async function makeQuestionsAI(pages, title, chapters, description) {
-  // 1 única chamada à IA com texto distribuído pelo livro
-  const chapsLabel = chapters.map(c => `${c.title} (pág ${c.pageNum})`).join(', ')
-  const text = pages.map(p => `[PAGE ${p.num}]\n${p.text}`).join('\n\n')
+async function genQuestions(pages, title, chapters, desc) {
+  const total = pages.length
+  const sample = [
+    ...pages.slice(0,Math.min(25,total)),
+    ...pages.slice(Math.floor(total*.4),Math.min(Math.floor(total*.4)+22,total)),
+    ...pages.slice(Math.floor(total*.72),Math.min(Math.floor(total*.72)+22,total)),
+  ]
+  const text = sample.map(p=>`[PAGE ${p.num}]\n${p.text}`).join('\n\n')
+  const chaps = chapters.map(c=>`${c.title} (pág ${c.pageNum})`).join(', ')
   try {
-    const result = await callAI('makeQuestions', {
-      text, title, chapters: chapsLabel, description: description || ''
-    })
-    const parsed = typeof result === 'string' ? JSON.parse(result) : result
+    const result = await callAI('makeQuestions',{text,title,chapters:chaps,description:desc||''})
+    const parsed = typeof result==='string' ? JSON.parse(result) : result
     return Array.isArray(parsed) ? parsed : []
-  } catch { return [] }
+  } catch(e) { console.warn('genQuestions:',e.message); return [] }
 }
 
-async function evalAnswerAI(question, answer, context, bookTitle) {
-  const result = await callAI('evalAnswer', { question, answer, context, bookTitle })
-  const parsed = typeof result === 'string' ? JSON.parse(result) : result
-  return parsed
+async function evalAnswer(question, answer, context, bookTitle) {
+  try {
+    const result = await callAI('evalAnswer',{question,answer,context,bookTitle})
+    return typeof result==='string' ? JSON.parse(result) : result
+  } catch { return {score:50,feedback:'Boa tentativa!',correct:false} }
 }
 
-// ═══════════════════════════════════════════════════════
-// READER HELPERS
-// ═══════════════════════════════════════════════════════
-function isPageLocked(pageNum) {
-  if (!S.currentBook) return false
-  const chapters = S.currentBook.chapters || []
-  if (chapters.length === 0) return false
-
-  // Encontrar o capítulo ao qual esta página pertence
-  // (o último capítulo cujo pageNum <= pageNum)
-  let ownerIdx = -1
-  for (let i = 0; i < chapters.length; i++) {
-    if (chapters[i].pageNum <= pageNum) ownerIdx = i
+// ─── GAMIFICATION ───────────────────────────────────────
+function calcScore(qs, refls, progress) {
+  if (!qs?.length) return 0
+  const totalPgs = S.book?.total_pages||1
+  const curPg = Math.round((progress/100)*totalPgs)
+  const vis = qs.filter(q=>q.beforePage<=curPg)
+  if (!vis.length) return 0
+  let earned=0, total=0
+  for (const q of vis) {
+    if (q.qtype==='mcq'||q.type==='Checkpoint') { total+=1; if(q.quality==='good') earned+=1 }
+    else { total+=2; if(q.quality==='good') earned+=2; else if(q.quality==='close') earned+=1 }
   }
-
-  // Página antes do primeiro capítulo — livre
-  if (ownerIdx < 0) return false
-
-  // Capítulo 1 (índice 0) — SEMPRE LIVRE
-  if (ownerIdx === 0) return false
-
-  // Para capítulos 2 em diante: verificar se há gate respondido
-  // O gate é a última pergunta ANTES do início deste capítulo
-  const ch = chapters[ownerIdx]
-  const gate = [...S.questions]
-    .reverse()
-    .find(q => q.beforePage < ch.pageNum)
-
-  // Sem nenhuma pergunta antes — liberar
-  if (!gate) return false
-
-  // Tem gate mas não foi respondido corretamente — BLOQUEAR
-  if (gate.quality !== 'good') return true
-
-  // Gate respondido — livre
-  return false
+  const goodRefls = (refls||[]).filter(r=>r._milestone&&r.quality==='good')
+  total += goodRefls.length; earned += goodRefls.length
+  return total>0 ? Math.min(100,Math.round((earned/total)*100)) : 0
 }
 
-// ═══════════════════════════════════════════════════════
-// GAMIFICAÇÃO — SCORE DE COMPREENSÃO
-// ═══════════════════════════════════════════════════════
-
-// Calcula o score de domínio do livro (0–100)
-// Baseado nas respostas às perguntas dentro do percentual lido
-function calcDomainScore(questions, reflections, progress) {
-  if (!questions || questions.length === 0) return 0
-
-  // Só conta perguntas que deveriam ter aparecido até o progresso atual
-  const totalPages    = S.currentBook?.total_pages || 1
-  const currentPage   = Math.round((progress / 100) * totalPages)
-  const visible       = questions.filter(q => q.beforePage <= currentPage)
-  if (visible.length === 0) return 0
-
-  let earned = 0
-  let total  = 0
-
-  for (const q of visible) {
-    if (q.qtype === 'mcq' || q.type === 'Checkpoint') {
-      // MCQ / Checkpoint: peso 1 — correto = 1pt, errado = 0pt
-      total += 1
-      if (q.quality === 'good') earned += 1
-    } else {
-      // Reflexão aberta: peso 2 (mais importante)
-      total += 2
-      if (q.quality === 'good')  earned += 2
-      else if (q.quality === 'close') earned += 1  // parcial
-    }
-  }
-
-  // Reflexões de marcos (60% e 100%) — bônus
-  const goodReflections = (reflections || []).filter(r => r._milestone && r.quality === 'good')
-  total  += goodReflections.length * 1
-  earned += goodReflections.length * 1
-
-  const raw = total > 0 ? Math.round((earned / total) * 100) : 0
-  return Math.min(100, raw)
-}
-
-// Nível baseado no score
-function getDomainLevel(score) {
-  if (score >= 85) return { label: 'Mestre do Conteúdo',   emoji: '🏆', color: '#f5c842' }
-  if (score >= 70) return { label: 'Analista de Ideias',   emoji: '🎯', color: '#D4AF37' }
-  if (score >= 50) return { label: 'Leitor Crítico',       emoji: '🔍', color: '#3aaa72' }
-  if (score >= 30) return { label: 'Leitor Ativo',         emoji: '📖', color: '#6ab0de' }
-  return              { label: 'Leitor Iniciante',         emoji: '🌱', color: 'rgba(255,255,255,.5)' }
-}
-
-// Atualiza o widget de score no reader
-function updateScoreWidget() {
-  const el = document.getElementById('score-widget')
-  if (!el || !S.currentBook) return
-  const score = calcDomainScore(S.questions, S.currentBook.reflections, S.progress)
-  const lvl   = getDomainLevel(score)
-  el.innerHTML = renderScoreWidget(score, lvl)
+function getLevel(score) {
+  if (score>=85) return {label:'Mestre do Conteúdo',emoji:'🏆',color:'#f5c842'}
+  if (score>=70) return {label:'Analista de Ideias',emoji:'🎯',color:'#D4AF37'}
+  if (score>=50) return {label:'Leitor Crítico',emoji:'🔍',color:'#3aaa72'}
+  if (score>=30) return {label:'Leitor Ativo',emoji:'📖',color:'#6ab0de'}
+  return {label:'Leitor Iniciante',emoji:'🌱',color:'rgba(255,255,255,.5)'}
 }
 
 function renderScoreWidget(score, lvl) {
-  const r = 22, circ = 2 * Math.PI * r
-  const dash = (score / 100) * circ
-  return `
-    <div style="display:flex;align-items:center;gap:8px;cursor:default" title="${lvl.label} — ${score}% de compreensão">
-      <svg width="54" height="54" viewBox="0 0 54 54">
-        <circle cx="27" cy="27" r="${r}" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="4"/>
-        <circle cx="27" cy="27" r="${r}" fill="none" stroke="${lvl.color}" stroke-width="4"
-          stroke-dasharray="${dash} ${circ}" stroke-dashoffset="${circ/4}"
-          stroke-linecap="round" style="transition:stroke-dasharray .8s cubic-bezier(.16,1,.3,1)"/>
-        <text x="27" y="32" text-anchor="middle" font-size="13" font-weight="700"
-          font-family="'DM Sans',sans-serif" fill="${lvl.color}">${score}%</text>
-      </svg>
-      <div style="line-height:1.3">
-        <div style="font-size:.62rem;color:rgba(255,255,255,.4);letter-spacing:.1em;text-transform:uppercase">Domínio</div>
-        <div style="font-size:.72rem;font-weight:600;color:${lvl.color}">${lvl.emoji} ${lvl.label}</div>
-      </div>
-    </div>`
-}
-
-// Mostra tela de resultado final quando livro é completado (100%)
-function showCompletionScreen() {
-  const book  = S.currentBook
-  if (!book) return
-  const score = calcDomainScore(S.questions, book.reflections, 100)
-  const lvl   = getDomainLevel(score)
-  const r     = 70, circ = 2 * Math.PI * r
-  const dash  = (score / 100) * circ
-
-  const overlay = document.createElement('div')
-  overlay.id = 'completion-overlay'
-  overlay.innerHTML = `
-    <div class="overlay center" id="completion-bg">
-      <div class="modal" style="max-width:420px;text-align:center;padding:40px 32px">
-
-        <!-- Anel SVG grande -->
-        <div style="display:flex;justify-content:center;margin-bottom:24px">
-          <svg width="180" height="180" viewBox="0 0 180 180">
-            <defs>
-              <linearGradient id="scoreGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" stop-color="#D4AF37"/>
-                <stop offset="100%" stop-color="#f5c842"/>
-              </linearGradient>
-            </defs>
-            <circle cx="90" cy="90" r="${r}" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="10"/>
-            <circle cx="90" cy="90" r="${r}" fill="none" stroke="url(#scoreGrad)" stroke-width="10"
-              stroke-dasharray="0 ${circ}" stroke-dashoffset="${circ/4}" stroke-linecap="round"
-              id="score-ring-anim" style="transition:stroke-dasharray 1.8s cubic-bezier(.16,1,.3,1)"/>
-            <text x="90" y="82" text-anchor="middle" font-size="42" font-weight="700"
-              font-family="'Playfair Display',serif" fill="#D4AF37" id="score-num-anim">0</text>
-            <text x="90" y="104" text-anchor="middle" font-size="13"
-              font-family="'DM Sans',sans-serif" fill="rgba(255,255,255,.45)">compreensão</text>
-          </svg>
-        </div>
-
-        <div style="font-size:2rem;margin-bottom:8px">${lvl.emoji}</div>
-        <h2 style="font-family:'Playfair Display',serif;font-size:1.5rem;color:var(--gold);margin-bottom:8px">
-          ${lvl.label}
-        </h2>
-        <p style="font-size:.92rem;color:var(--text2);line-height:1.6;margin-bottom:6px">
-          Você alcançou <strong style="color:var(--gold)">${score}% de compreensão</strong> em<br/>
-          <em>"${escHtml(book.title)}"</em>
-        </p>
-
-        <div style="margin:20px 0;padding:16px;background:var(--gold-dim);border:1px solid var(--border2);border-radius:var(--radius);font-size:.82rem;color:var(--text2);line-height:1.7">
-          ${getScoreMessage(score)}
-        </div>
-
-        <!-- Detalhamento -->
-        ${renderScoreBreakdown(S.questions, book.reflections)}
-
-        <div style="display:flex;gap:10px;margin-top:20px">
-          <button class="btn btn-ghost" id="comp-share" style="flex:1">📊 Compartilhar</button>
-          <button class="btn btn-gold" id="comp-close" style="flex:1">✓ Concluir</button>
-        </div>
-      </div>
-    </div>`
-  document.body.appendChild(overlay)
-
-  // Animar anel
-  setTimeout(() => {
-    const ring = document.getElementById('score-ring-anim')
-    if (ring) ring.setAttribute('stroke-dasharray', `${dash} ${circ}`)
-    // Animar número
-    const numEl = document.getElementById('score-num-anim')
-    if (numEl) {
-      let cur = 0
-      const step = () => {
-        cur = Math.min(cur + Math.ceil(score / 40), score)
-        numEl.textContent = cur + '%'
-        if (cur < score) requestAnimationFrame(step)
-      }
-      requestAnimationFrame(step)
-    }
-  }, 100)
-
-  document.getElementById('completion-bg').addEventListener('click', e => {
-    if (e.target === e.currentTarget) overlay.remove()
-  })
-  document.getElementById('comp-close').addEventListener('click', () => overlay.remove())
-  document.getElementById('comp-share').addEventListener('click', () => {
-    overlay.remove()
-    S.quoteText = `Terminei "${book.title}" com ${score}% de compreensão no StepBook!`
-    showShareModal('feed')
-  })
-}
-
-function getScoreMessage(score) {
-  if (score >= 85) return '🏆 Excelente! Você demonstrou domínio profundo do conteúdo. Suas reflexões mostraram conexão genuína com as ideias do livro.'
-  if (score >= 70) return '🎯 Muito bom! Você compreendeu as ideias centrais e as conectou com reflexões próprias. Continue assim!'
-  if (score >= 50) return '🔍 Bom progresso! Você captou os pontos principais. Releia os capítulos onde errou para consolidar o aprendizado.'
-  if (score >= 30) return '📖 Você deu o primeiro passo! Na próxima leitura, tente responder as perguntas com mais detalhes e exemplos do próprio texto.'
-  return '🌱 Cada leitura é uma oportunidade de crescimento. Tente reler com mais atenção às ideias principais.'
-}
-
-function renderScoreBreakdown(questions, reflections) {
-  const total   = questions?.length || 0
-  const good    = questions?.filter(q => q.quality === 'good').length || 0
-  const partial = questions?.filter(q => q.quality === 'close').length || 0
-  const refls   = reflections?.filter(r => r._milestone).length || 0
-
-  if (total === 0) return ''
-  return `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:4px">
-    ${[
-      ['✅', good,    'Completas'],
-      ['💡', partial, 'Parciais'],
-      ['📝', refls,   'Reflexões'],
-    ].map(([icon, val, lbl]) => `
-      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:10px 6px;text-align:center">
-        <div style="font-size:1.2rem">${icon}</div>
-        <div style="font-size:1.1rem;font-weight:700;color:var(--gold)">${val}</div>
-        <div style="font-size:.65rem;color:var(--text3);text-transform:uppercase;letter-spacing:.08em">${lbl}</div>
-      </div>`).join('')}
+  const r=22, circ=2*Math.PI*r, dash=(score/100)*circ
+  return `<div class="score-ring" title="${lvl.label} — ${score}%" onclick="showScoreDetails()">
+    <svg width="52" height="52" viewBox="0 0 52 52">
+      <circle cx="26" cy="26" r="${r}" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="4"/>
+      <circle cx="26" cy="26" r="${r}" fill="none" stroke="${lvl.color}" stroke-width="4"
+        stroke-dasharray="${dash} ${circ}" stroke-dashoffset="${circ/4}" stroke-linecap="round"
+        style="transition:stroke-dasharray .8s cubic-bezier(.16,1,.3,1)"/>
+      <text x="26" y="31" text-anchor="middle" font-size="12" font-weight="700" font-family="'DM Sans',sans-serif" fill="${lvl.color}">${score}%</text>
+    </svg>
+    <div style="line-height:1.2">
+      <div style="font-size:.60rem;color:rgba(255,255,255,.38);letter-spacing:.1em;text-transform:uppercase">Domínio</div>
+      <div style="font-size:.70rem;font-weight:600;color:${lvl.color}">${lvl.emoji} ${lvl.label}</div>
+    </div>
   </div>`
+}
+
+function updateScoreWidget() {
+  const el = $('score-widget')
+  if (!el||!S.book) return
+  const sc = calcScore(S.questions,S.book.reflections,S.progress)
+  el.innerHTML = renderScoreWidget(sc, getLevel(sc))
 }
 
 function showScoreDetails() {
-  if (!S.currentBook) return
-  const score = calcDomainScore(S.questions, S.currentBook.reflections, S.progress)
-  const lvl   = getDomainLevel(score)
-  const overlay = document.createElement('div')
-  overlay.innerHTML = `<div class="overlay center" id="sd-overlay">
-    <div class="modal" style="max-width:360px;text-align:center">
-      <h3 class="modal-title">Score de Domínio</h3>
-      <p class="modal-sub">${escHtml(S.currentBook.title)}</p>
-      <div style="display:flex;justify-content:center;margin:16px 0">
-        ${renderScoreWidget(score, lvl)}
-      </div>
-      <p style="font-size:.85rem;color:var(--text2);line-height:1.6;margin-bottom:16px">
-        ${getScoreMessage(score)}
-      </p>
-      ${renderScoreBreakdown(S.questions, S.currentBook.reflections)}
-      <p style="margin-top:16px;font-size:.73rem;color:var(--text3);line-height:1.6">
-        O score cresce conforme você responde bem às perguntas.<br/>
-        Reflexões abertas têm peso 2×, checkpoints têm peso 1×.
-      </p>
-      <button class="btn btn-gold" style="width:100%;margin-top:20px" id="sd-close">Fechar</button>
+  if (!S.book) return
+  const sc = calcScore(S.questions,S.book.reflections,S.progress)
+  const lvl = getLevel(sc)
+  const good = S.questions.filter(q=>q.quality==='good').length
+  const partial = S.questions.filter(q=>q.quality==='close').length
+  const refls = (S.book.reflections||[]).filter(r=>r._milestone).length
+  showModal(`<h3 class="modal-title">Score de Domínio</h3>
+    <p class="modal-sub">${esc(S.book.title)}</p>
+    <div style="display:flex;justify-content:center;margin:16px 0">
+      ${renderScoreWidget(sc,lvl)}
     </div>
-  </div>`
-  document.body.appendChild(overlay)
-  document.getElementById('sd-overlay').addEventListener('click', e => { if(e.target===e.currentTarget) overlay.remove() })
-  document.getElementById('sd-close').addEventListener('click', () => overlay.remove())
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin:16px 0">
+      ${[['✅',good,'Completas'],['💡',partial,'Parciais'],['📝',refls,'Reflexões']].map(([ic,v,l])=>`
+        <div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:10px 6px;text-align:center">
+          <div style="font-size:1.2rem">${ic}</div>
+          <div style="font-size:1.1rem;font-weight:700;color:var(--gold)">${v}</div>
+          <div style="font-size:.65rem;color:var(--text3);text-transform:uppercase;letter-spacing:.08em">${l}</div>
+        </div>`).join('')}
+    </div>
+    <button class="btn btn-gold" style="width:100%" onclick="closeModal()">Fechar</button>`)
 }
 
-async function generatePremiumCard(canvas, quoteText, bookTitle) {
-  const ctx = canvas.getContext('2d')
-  const W = 1080, H = 1920
-  canvas.width = W; canvas.height = H
-
-  // ── FUNDO ──────────────────────────────────────────────
-  ctx.fillStyle = '#060c18'
-  ctx.fillRect(0, 0, W, H)
-
-  // Glow dourado central
-  const glow = ctx.createRadialGradient(W/2, H/2, 0, W/2, H/2, 800)
-  glow.addColorStop(0,   'rgba(212,175,55,0.06)')
-  glow.addColorStop(0.6, 'rgba(212,175,55,0.02)')
-  glow.addColorStop(1,   'transparent')
-  ctx.fillStyle = glow; ctx.fillRect(0, 0, W, H)
-
-  // Grain sutil — desativado em mobile para performance
-  if (window.innerWidth >= 768) {
-    for (let i = 0; i < 4000; i++) {
-      ctx.fillStyle = `rgba(255,255,255,${Math.random()*0.014})`
-      ctx.fillRect(Math.random()*W, Math.random()*H, 1, 1)
-    }
-  }
-
-  // ── MOLDURA ─────────────────────────────────────────────
-  const M = 52
-  ctx.strokeStyle = 'rgba(212,175,55,0.32)'; ctx.lineWidth = 1.5
-  ctx.strokeRect(M, M, W-M*2, H-M*2)
-
-  // Cantos em L
-  const CL = 64
-  ctx.strokeStyle = '#D4AF37'; ctx.lineWidth = 2.5; ctx.lineCap = 'square'
-  ;[[M,M,1,0,0,1],[W-M,M,-1,0,0,1],[M,H-M,1,0,0,-1],[W-M,H-M,-1,0,0,-1]]
-  .forEach(([x,y,sx,sy,ex,ey]) => {
-    ctx.beginPath()
-    ctx.moveTo(x+sx*CL, y+sy*CL); ctx.lineTo(x,y); ctx.lineTo(x+ex*CL, y+ey*CL)
-    ctx.stroke()
-    ctx.save(); ctx.translate(x,y); ctx.rotate(Math.PI/4)
-    ctx.fillStyle='#D4AF37'; ctx.fillRect(-4,-4,8,8); ctx.restore()
-  })
-
-  // ── LOGO (topo) ─────────────────────────────────────────
-  const LOGO_SZ = 100
-  const LOGO_Y  = M + 80  // topo da logo
-
-  const logo = await new Promise(r => {
-    const img = new Image(); img.crossOrigin = 'anonymous'
-    img.onload = () => r(img); img.onerror = () => r(null); img.src = LOGO_URL
-  })
-  if (logo) {
-    ctx.save()
-    ctx.shadowColor = 'rgba(212,175,55,0.5)'; ctx.shadowBlur = 28
-    ctx.drawImage(logo, W/2-LOGO_SZ/2, LOGO_Y, LOGO_SZ, LOGO_SZ)
-    ctx.restore()
-  }
-
-  ctx.textAlign = 'center'
-  ctx.fillStyle = '#D4AF37'
-  ctx.font = '400 28px "Playfair Display", serif'
-  ctx.fillText('S T E P B O O K', W/2, LOGO_Y + LOGO_SZ + 46)
-
-  ctx.fillStyle = 'rgba(255,255,255,0.30)'
-  ctx.font = '400 18px "DM Sans", sans-serif'
-  ctx.fillText('LEITURA ATIVA COM IA', W/2, LOGO_Y + LOGO_SZ + 76)
-
-  // ── DIVISOR 1 ───────────────────────────────────────────
-  const DIV1 = LOGO_Y + LOGO_SZ + 112
-  pDiv(ctx, W, DIV1)
-
-  // ── TEXTO: layout top-down a partir de TXT_Y ───────────
-  // Tudo calculado de cima para baixo — sem centralização
-  const PAD_X  = 90          // margem lateral do texto
-  const MAX_W  = W - PAD_X*2
-  const TXT_Y  = DIV1 + 70   // onde começa o texto
-
-  // ── Header acima da citação ──────────────────────────
-  const HDR_SZ    = 28
-  const HDR_GAP   = 48   // gap entre header e quote
-
-  // Truncar quote — máx 140 chars
-  const rawQ = quoteText.length > 140 ? quoteText.slice(0,137)+'…' : quoteText
-  const quoteFull = '\u201c' + rawQ + '\u201d'
-
-  // Fonte adaptativa: começa em 50px, reduz 3px até caber em ≤4 linhas
-  let qSz = 50
-  while (qSz > 28) {
-    ctx.font = `italic 400 ${qSz}px "Playfair Display", serif`
-    if (wrapTxt(ctx, quoteFull, MAX_W).length <= 4) break
-    qSz -= 3
-  }
-  ctx.font = `italic 400 ${qSz}px "Playfair Display", serif`
-  const qLines = wrapTxt(ctx, quoteFull, MAX_W)
-  const qLH    = Math.round(qSz * 1.55)
-
-  // Fonte adaptativa título: começa em 30px, reduz 2px até caber em ≤2 linhas
-  let tSz = 30
-  while (tSz > 20) {
-    ctx.font = `600 ${tSz}px "Playfair Display", serif`
-    if (wrapTxt(ctx, bookTitle, MAX_W-60).length <= 2) break
-    tSz -= 2
-  }
-  ctx.font = `600 ${tSz}px "Playfair Display", serif`
-  const tLines = wrapTxt(ctx, bookTitle, MAX_W-60)
-  const tLH    = Math.round(tSz * 1.55)
-
-  // Calcular altura total do bloco (incluindo header)
-  const LBL_SZ  = 26
-  const GAP_Q_D = 52   // quote → mini-div
-  const GAP_D_L = 36   // mini-div → label
-  const GAP_L_T = 28   // label → título
-  const BLOCK_H = HDR_SZ + HDR_GAP + qLines.length*qLH + GAP_Q_D + LBL_SZ + GAP_D_L + GAP_L_T + tLines.length*tLH
-
-  // Rodapé fixo: 180px do fundo
-  const FOOT_Y  = H - M - 170
-  const DIV2    = FOOT_Y - 100
-  const ZONE_H  = DIV2 - TXT_Y
-
-  // Centralizar verticalmente na zona — com clamp
-  let cy = TXT_Y + Math.max(0, Math.round((ZONE_H - BLOCK_H) / 2))
-
-  // ── Desenhar header ───────────────────────────────────
-  ctx.textAlign = 'center'
-  // Parte normal: "Li essa frase pelo "
-  const HDR_NORMAL = 'Li essa frase pelo '
-  const HDR_BOLD   = 'StepBook'
-  const HDR_END    = ' que me fez refletir'
-
-  ctx.font = `400 ${HDR_SZ}px "Playfair Display", serif`
-  const wNormal = ctx.measureText(HDR_NORMAL).width
-  const wBold   = (() => { ctx.font = `700 ${HDR_SZ}px "Playfair Display", serif`; return ctx.measureText(HDR_BOLD).width })()
-  const wEnd    = (() => { ctx.font = `400 ${HDR_SZ}px "Playfair Display", serif`; return ctx.measureText(HDR_END).width })()
-  const totalHdrW = wNormal + wBold + wEnd
-  let hx = W/2 - totalHdrW/2
-
-  cy += HDR_SZ  // baseline do header
-  ctx.fillStyle = 'rgba(255,255,255,0.55)'
-  ctx.font = `400 ${HDR_SZ}px "Playfair Display", serif`
-  ctx.textAlign = 'left'
-  ctx.fillText(HDR_NORMAL, hx, cy); hx += wNormal
-
-  ctx.fillStyle = '#D4AF37'
-  ctx.font = `700 ${HDR_SZ}px "Playfair Display", serif`
-  ctx.fillText(HDR_BOLD, hx, cy); hx += wBold
-
-  ctx.fillStyle = 'rgba(255,255,255,0.55)'
-  ctx.font = `400 ${HDR_SZ}px "Playfair Display", serif`
-  ctx.fillText(HDR_END, hx, cy)
-
-  cy += HDR_GAP
-
-  // Desenhar quote linha por linha
-  ctx.textAlign = 'center'
-  ctx.fillStyle = 'rgba(244,239,234,0.92)'
-  ctx.font = `italic 400 ${qSz}px "Playfair Display", serif`
-  for (const l of qLines) {
-    cy += qLH
-    ctx.fillText(l, W/2, cy)
-  }
-
-  // Mini divisor
-  cy += GAP_Q_D
-  pMiniDiv(ctx, W, cy)
-
-  // Label
-  cy += GAP_D_L
-  ctx.fillStyle = 'rgba(212,175,55,0.65)'
-  ctx.font = `italic 400 ${LBL_SZ}px "Playfair Display", serif`
-  ctx.fillText('— Livro —', W/2, cy)
-
-  // Título
-  cy += GAP_L_T
-  ctx.fillStyle = '#D4AF37'
-  ctx.font = `600 ${tSz}px "Playfair Display", serif`
-  for (const l of tLines) {
-    cy += tLH
-    ctx.fillText(l, W/2, cy)
-  }
-
-  // ── DIVISOR 2 ───────────────────────────────────────────
-  pDiv(ctx, W, DIV2)
-
-  // ── RODAPÉ ──────────────────────────────────────────────
-  ctx.fillStyle = 'rgba(255,255,255,0.50)'
-  ctx.font = '500 24px "DM Sans", sans-serif'
-  ctx.fillText('stepbook.vercel.app', W/2, DIV2 + 58)
-
-  ctx.fillStyle = 'rgba(212,175,55,0.40)'
-  ctx.font = 'italic 400 19px "Playfair Display", serif'
-  ctx.fillText('Leia. Questione. Domine.', W/2, DIV2 + 92)
-
-  return canvas.toDataURL('image/png', 1.0)
-}
-
-// Divisor ornamental com losango e pontos
-function pDiv(ctx, W, y) {
-  const cx = W/2, hw = 280
-  ;[[-hw,-35],[35,hw]].forEach(([a,b]) => {
-    const g = ctx.createLinearGradient(cx+a,0,cx+b,0)
-    g.addColorStop(0,'transparent'); g.addColorStop(1,'rgba(212,175,55,0.65)')
-    if (b > 0) { g.addColorStop(0,'rgba(212,175,55,0.65)'); g.addColorStop(1,'transparent') }
-    ctx.strokeStyle = g; ctx.lineWidth = 1
-    ctx.beginPath(); ctx.moveTo(cx+a,y); ctx.lineTo(cx+b,y); ctx.stroke()
-  })
-  const gl = ctx.createLinearGradient(cx-hw,0,cx-35,0)
-  gl.addColorStop(0,'transparent'); gl.addColorStop(1,'rgba(212,175,55,0.65)')
-  ctx.strokeStyle=gl; ctx.lineWidth=1
-  ctx.beginPath(); ctx.moveTo(cx-hw,y); ctx.lineTo(cx-35,y); ctx.stroke()
-  const gr = ctx.createLinearGradient(cx+35,0,cx+hw,0)
-  gr.addColorStop(0,'rgba(212,175,55,0.65)'); gr.addColorStop(1,'transparent')
-  ctx.strokeStyle=gr
-  ctx.beginPath(); ctx.moveTo(cx+35,y); ctx.lineTo(cx+hw,y); ctx.stroke()
-  ctx.fillStyle='#D4AF37'
-  ctx.save(); ctx.translate(cx,y); ctx.rotate(Math.PI/4); ctx.fillRect(-6,-6,12,12); ctx.restore()
-  ;[-22,22].forEach(o => { ctx.beginPath(); ctx.arc(cx+o,y,2.2,0,Math.PI*2); ctx.fillStyle='rgba(212,175,55,0.45)'; ctx.fill() })
-}
-
-// Mini divisor
-function pMiniDiv(ctx, W, y) {
-  const cx = W/2, hw = 120
-  const g = ctx.createLinearGradient(cx-hw,0,cx+hw,0)
-  g.addColorStop(0,'transparent'); g.addColorStop(0.4,'rgba(212,175,55,0.45)')
-  g.addColorStop(0.6,'rgba(212,175,55,0.45)'); g.addColorStop(1,'transparent')
-  ctx.strokeStyle=g; ctx.lineWidth=1
-  ctx.beginPath(); ctx.moveTo(cx-hw,y); ctx.lineTo(cx+hw,y); ctx.stroke()
-  ctx.beginPath(); ctx.arc(cx,y,2,0,Math.PI*2); ctx.fillStyle='rgba(212,175,55,0.55)'; ctx.fill()
-}
-
-// Word-wrap
-function wrapTxt(ctx, text, maxW) {
-  const words = text.split(' '); const lines = []; let line = ''
-  for (const w of words) {
-    const test = line + w + ' '
-    if (ctx.measureText(test).width > maxW && line) { lines.push(line.trim()); line = w+' ' }
-    else line = test
-  }
-  if (line.trim()) lines.push(line.trim())
-  return lines
-}
-
-function measureLines(ctx, t, w) { return wrapTxt(ctx, t, w) }
-
-// ═══════════════════════════════════════════════════════
-// RENDER ENGINE
-// ═══════════════════════════════════════════════════════
-function render(screen) {
-  S.screen = screen
-  const app = document.getElementById('app')
-
-  if (screen === 'loading')   { app.innerHTML = renderLoading(); return }
-  if (screen === 'auth')      { app.innerHTML = renderAuth(); bindAuth(); return }
-  if (screen === 'library')   { app.innerHTML = renderLibrary(); bindLibrary(); return }
-  if (screen === 'importing') { app.innerHTML = renderImporting(); return }
-  if (screen === 'reader')    { app.innerHTML = renderReader(); bindReader(); return }
-}
-
-// ── LOADING ───────────────────────────────────────────
-function renderLoading() {
-  return `<div class="loading-overlay">
-    <img src="${LOGO_URL}" style="width:80px;filter:drop-shadow(0 0 14px rgba(222,173,42,.5))" />
-    <div class="loading-logo">StepBook</div>
-    <div class="spinner"></div>
-    <p style="color:var(--text2);font-size:.8rem;margin-top:8px">Conectando…</p>
-  </div>`
-}
-
-// ── AUTH ──────────────────────────────────────────────
-function renderAuth() {
-  return `<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;position:relative;overflow:hidden">
-    <div style="position:absolute;width:500px;height:500px;border-radius:50%;background:radial-gradient(circle,rgba(222,173,42,.06) 0%,transparent 70%);top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none"></div>
-    <div style="width:100%;max-width:400px;background:var(--bg2);border:1px solid var(--border2);border-radius:var(--radius-lg);padding:36px 32px;position:relative">
-      <div style="display:flex;flex-direction:column;align-items:center;gap:4px;margin-bottom:28px">
-        <img src="${LOGO_URL}" style="width:72px;height:72px;object-fit:contain;filter:drop-shadow(0 0 14px rgba(222,173,42,.5))" />
-        <span style="font-family:'Playfair Display',serif;font-size:1.6rem;font-weight:700;color:var(--gold);letter-spacing:.04em">StepBook</span>
+function showCompletionScreen() {
+  if (!S.book) return
+  const sc = calcScore(S.questions,S.book.reflections,100)
+  const lvl = getLevel(sc)
+  const r=70, circ=2*Math.PI*r, dash=(sc/100)*circ
+  showModal(`
+    <div style="text-align:center">
+      <svg width="160" height="160" viewBox="0 0 160 160" style="margin:0 auto 16px">
+        <circle cx="80" cy="80" r="${r}" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="10"/>
+        <circle cx="80" cy="80" r="${r}" fill="none" stroke="url(#sg)" stroke-width="10"
+          stroke-dasharray="0 ${circ}" stroke-dashoffset="${circ/4}" stroke-linecap="round"
+          id="comp-ring" style="transition:stroke-dasharray 1.8s cubic-bezier(.16,1,.3,1)"/>
+        <defs><linearGradient id="sg" x1="0%" y1="0%" x2="100%"><stop offset="0%" stop-color="#D4AF37"/><stop offset="100%" stop-color="#f5c842"/></linearGradient></defs>
+        <text x="80" y="73" text-anchor="middle" font-size="38" font-weight="700" font-family="'Playfair Display',serif" fill="#D4AF37" id="comp-num">0</text>
+        <text x="80" y="94" text-anchor="middle" font-size="12" font-family="'DM Sans',sans-serif" fill="rgba(255,255,255,.45)">compreensão</text>
+      </svg>
+      <div style="font-size:2rem;margin-bottom:8px">${lvl.emoji}</div>
+      <h2 style="font-family:'Playfair Display',serif;font-size:1.4rem;color:var(--gold);margin-bottom:8px">${lvl.label}</h2>
+      <p style="font-size:.9rem;color:var(--text2);line-height:1.6;margin-bottom:16px">
+        Você alcançou <strong style="color:var(--gold)">${sc}% de compreensão</strong> em<br/>
+        <em>"${esc(S.book.title)}"</em>
+      </p>
+      <div style="display:flex;gap:10px;margin-top:16px">
+        <button class="btn btn-ghost" style="flex:1" onclick="closeModal();showShareModal('feed')">📊 Compartilhar</button>
+        <button class="btn btn-gold" style="flex:1" onclick="closeModal()">✓ Concluir</button>
       </div>
-      <h1 id="auth-title" style="font-family:'Playfair Display',serif;font-size:1.5rem;color:var(--text);margin-bottom:6px">Bem-vindo de volta</h1>
-      <p id="auth-sub" style="font-size:.88rem;color:var(--text2);margin-bottom:28px">Sua biblioteca te espera.</p>
-      <form id="auth-form" style="display:flex;flex-direction:column;gap:16px">
-        <div style="display:flex;flex-direction:column;gap:6px">
-          <label style="font-size:.78rem;font-weight:600;color:var(--text2);letter-spacing:.05em;text-transform:uppercase">E-mail</label>
-          <input id="auth-email" class="input" type="email" required placeholder="seu@email.com" autocomplete="email" />
-        </div>
-        <div style="display:flex;flex-direction:column;gap:6px">
-          <label style="font-size:.78rem;font-weight:600;color:var(--text2);letter-spacing:.05em;text-transform:uppercase">Senha</label>
-          <input id="auth-pass" class="input" type="password" required minlength="6" placeholder="••••••••" autocomplete="current-password" />
-        </div>
-        <button id="auth-submit" class="btn btn-gold" type="submit" style="width:100%;margin-top:8px;justify-content:center">Entrar</button>
+    </div>`, true)
+  setTimeout(()=>{
+    const ring=$('comp-ring'); if(ring) ring.setAttribute('stroke-dasharray',`${dash} ${circ}`)
+    const num=$('comp-num'); if(num){let c=0;const step=()=>{c=Math.min(c+Math.ceil(sc/40),sc);num.textContent=c+'%';if(c<sc)requestAnimationFrame(step)};requestAnimationFrame(step)}
+  },120)
+}
+
+// ─── MODAL HELPER ───────────────────────────────────────
+function showModal(html, center=false) {
+  const ov = document.createElement('div')
+  ov.className = 'overlay'+(center?' center':'')
+  ov.id = '_modal'
+  ov.innerHTML = `<div class="modal">${html}</div>`
+  ov.addEventListener('click', e=>{if(e.target===ov)ov.remove()})
+  document.body.appendChild(ov)
+}
+function closeModal() { $('_modal')?.remove() }
+
+// ─── READER LOCK ────────────────────────────────────────
+function isLocked(pageNum) {
+  if (!S.book) return false
+  const chaps = S.book.chapters||[]
+  if (!chaps.length) return false
+  let ownerIdx=-1
+  for (let i=0;i<chaps.length;i++) if(chaps[i].pageNum<=pageNum) ownerIdx=i
+  if (ownerIdx<=0) return false
+  const ch = chaps[ownerIdx]
+  const gate = [...S.questions].reverse().find(q=>q.beforePage<ch.pageNum)
+  if (!gate) return false
+  return gate.quality!=='good'
+}
+
+// ─── RENDERS ────────────────────────────────────────────
+function renderLoading() {
+  return `<div class="loading">
+    <img src="${LOGO}" style="width:72px;filter:drop-shadow(0 0 14px rgba(212,175,55,.5))"/>
+    <div class="loading-logo">StepBook</div>
+    <div class="spin"></div>
+    <p style="color:var(--text2);font-size:.8rem">Conectando…</p>
+  </div>`
+}
+
+function renderImporting() {
+  const steps=['Lendo o PDF…','Buscando metadados…','Detectando capítulos…','Gerando perguntas…','Salvando…']
+  const si = S.importStep
+  return `<div class="loading">
+    <img src="${LOGO}" style="width:64px;filter:drop-shadow(0 0 12px rgba(212,175,55,.5))"/>
+    <div class="loading-logo" style="font-size:1.5rem">StepBook</div>
+    ${S.importError
+      ? `<p style="color:var(--red);font-size:.88rem;text-align:center;max-width:300px;padding:0 20px">${esc(S.importError)}</p>
+         <button class="btn btn-ghost btn-sm" onclick="render('library')">← Voltar</button>`
+      : `<div class="spin"></div>
+         <div class="loading-steps">
+           ${steps.map((s,i)=>`<div style="color:${i===si?'var(--gold)':i<si?'var(--green)':'var(--text3)'}">${i<si?'✓ ':i===si?'⟳ ':'○ '}${s}</div>`).join('')}
+           ${S.importMsg?`<div style="color:rgba(255,255,255,.35);font-size:.72rem;margin-top:6px">▸ ${esc(S.importMsg)}</div>`:''}
+         </div>`
+    }
+  </div>`
+}
+
+function updateImportUI() {
+  if (S.screen!=='importing') return
+  $('app').innerHTML = renderImporting()
+}
+
+function renderAuth() {
+  return `<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px">
+    <div style="width:100%;max-width:400px;background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r2);padding:36px 28px">
+      <div style="text-align:center;margin-bottom:28px">
+        <img src="${LOGO}" style="width:64px;height:64px;object-fit:contain;filter:drop-shadow(0 0 12px rgba(212,175,55,.5));margin:0 auto 10px"/>
+        <div style="font-family:'Playfair Display',serif;font-size:1.5rem;color:var(--gold)">StepBook</div>
+      </div>
+      <h2 id="auth-title" style="font-family:'Playfair Display',serif;font-size:1.3rem;margin-bottom:6px">Bem-vindo</h2>
+      <p id="auth-sub" style="font-size:.86rem;color:var(--text2);margin-bottom:24px">Sua biblioteca te espera.</p>
+      <form id="auth-form" style="display:flex;flex-direction:column;gap:14px">
+        <input id="auth-email" class="inp" type="email" required placeholder="seu@email.com" autocomplete="email"/>
+        <input id="auth-pass" class="inp" type="password" required minlength="6" placeholder="Senha" autocomplete="current-password"/>
+        <button id="auth-btn" class="btn btn-gold" type="submit" style="justify-content:center">Entrar</button>
       </form>
       <div class="divider"></div>
-      <p style="text-align:center;font-size:.85rem;color:var(--text2)">
-        Não tem conta?
-        <button id="auth-switch" style="background:none;border:none;color:var(--gold);font-weight:600;cursor:pointer;font-size:.85rem;text-decoration:underline">Criar agora</button>
+      <p style="text-align:center;font-size:.84rem;color:var(--text2)">
+        Não tem conta? <button id="auth-sw" style="background:none;border:none;color:var(--gold);font-weight:600;font-size:.84rem;text-decoration:underline">Criar agora</button>
       </p>
     </div>
   </div>`
 }
 
 function bindAuth() {
-  let mode = 'login'
-  const form  = document.getElementById('auth-form')
-  const sw    = document.getElementById('auth-switch')
-  const title = document.getElementById('auth-title')
-  const sub   = document.getElementById('auth-sub')
-  const btn   = document.getElementById('auth-submit')
-  const pass  = document.getElementById('auth-pass')
-
-  sw.onclick = () => {
-    mode = mode === 'login' ? 'signup' : 'login'
-    title.textContent = mode === 'login' ? 'Bem-vindo de volta' : 'Criar conta'
-    sub.textContent   = mode === 'login' ? 'Sua biblioteca te espera.' : 'Comece sua jornada de leitura ativa.'
-    btn.textContent   = mode === 'login' ? 'Entrar' : 'Criar conta'
-    sw.textContent    = mode === 'login' ? 'Criar agora' : 'Entrar'
-    pass.autocomplete = mode === 'login' ? 'current-password' : 'new-password'
+  let mode='login'
+  const btn=$('auth-btn'), sw=$('auth-sw')
+  sw.onclick=()=>{
+    mode=mode==='login'?'signup':'login'
+    $('auth-title').textContent=mode==='login'?'Bem-vindo':'Criar conta'
+    $('auth-sub').textContent=mode==='login'?'Sua biblioteca te espera.':'Comece sua jornada de leitura ativa.'
+    btn.textContent=mode==='login'?'Entrar':'Criar conta'
+    sw.textContent=mode==='login'?'Criar agora':'Já tenho conta'
   }
-
-  form.onsubmit = async (e) => {
+  $('auth-form').onsubmit=async(e)=>{
     e.preventDefault()
-    btn.disabled = true
-    btn.innerHTML = '<span class="spinner" style="width:16px;height:16px;border-width:2px"></span> Aguarde…'
-    const email = document.getElementById('auth-email').value
-    const pass  = document.getElementById('auth-pass').value
+    btn.disabled=true; btn.innerHTML='<span class="spin spin-sm"></span>'
+    const email=$('auth-email').value, pass=$('auth-pass').value
     try {
-      if (mode === 'login') {
-        await signIn(email, pass)
-      } else {
-        await signUp(email, pass)
-        toast('Conta criada! Verifique seu e-mail para confirmar.')
-      }
-    } catch (err) {
-      toast(err.message || 'Erro ao entrar.')
-      btn.disabled = false
-      btn.textContent = mode === 'login' ? 'Entrar' : 'Criar conta'
+      if (mode==='login') await db.auth.signInWithPassword({email,password:pass}).then(r=>{if(r.error)throw r.error})
+      else { const {error}=await db.auth.signUp({email,password:pass}); if(error)throw error; toast('Conta criada! Verifique seu e-mail.') }
+    } catch(err) {
+      toast(err.message||'Erro ao entrar.')
+      btn.disabled=false; btn.textContent=mode==='login'?'Entrar':'Criar conta'
     }
   }
 }
 
-// ── LIBRARY ───────────────────────────────────────────
 function renderLibrary() {
-  const isPro = S.plan === 'pro'
-  const booksHTML = S.books.length === 0
-    ? `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;text-align:center">
-        <span style="font-size:3rem">📚</span>
-        <p style="color:var(--text2);font-size:.9rem;margin-top:12px">Sua biblioteca está vazia. Importe um PDF para começar.</p>
+  const pro = S.plan==='pro'
+  const booksHTML = S.books.length===0
+    ? `<div style="text-align:center;padding:60px 20px">
+        <div style="font-size:3rem">📚</div>
+        <p style="color:var(--text2);margin-top:12px;font-size:.9rem">Biblioteca vazia.<br/>Importe um PDF para começar.</p>
       </div>`
-    : `<div class="books-grid">${S.books.map(b => renderBookCard(b)).join('')}</div>`
+    : `<div class="books-grid">${S.books.map(renderBookCard).join('')}</div>`
 
-  return `<div style="min-height:100vh;background:var(--bg)">
-    <!-- NAV -->
-    <nav style="position:sticky;top:0;z-index:50;display:flex;align-items:center;justify-content:space-between;padding:14px 20px;background:rgba(3,8,16,.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--border)">
-      <span style="font-family:'Playfair Display',serif;font-size:1.05rem;font-weight:700;color:var(--gold)">StepBook <span style="font-family:'DM Sans',sans-serif;font-size:.78rem;font-weight:400;color:var(--text3)">— Leitura Interativa</span></span>
+  const TG_BTN = `<a href="https://t.me/stepbookreflections" target="_blank" title="Comunidade Telegram"
+    style="display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;background:rgba(0,136,204,.15);border:1px solid rgba(0,136,204,.3)">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="#29a8e8"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12L7.19 13.753l-2.95-.924c-.64-.203-.658-.64.135-.953l11.57-4.461c.537-.194 1.006.131.949.806z"/></svg>
+  </a>`
+
+  return `<div style="min-height:100vh">
+    <nav style="position:sticky;top:0;z-index:50;display:flex;align-items:center;justify-content:space-between;padding:14px 20px;background:rgba(3,8,16,.93);backdrop-filter:blur(12px);border-bottom:1px solid var(--border)">
+      <span style="font-family:'Playfair Display',serif;font-size:1rem;font-weight:700;color:var(--gold)">StepBook</span>
       <div style="display:flex;align-items:center;gap:10px">
-        <a href="https://t.me/stepbookreflections" target="_blank" title="Comunidade StepBook no Telegram"
-          style="display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;background:rgba(0,136,204,0.15);border:1px solid rgba(0,136,204,0.3);transition:background .2s"
-          onmouseover="this.style.background='rgba(0,136,204,0.3)'" onmouseout="this.style.background='rgba(0,136,204,0.15)'">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="#29a8e8"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12L7.19 13.753l-2.95-.924c-.64-.203-.658-.64.135-.953l11.57-4.461c.537-.194 1.006.131.949.806z"/></svg>
-        </a>
-        <span class="badge badge-gold">${isPro ? '⭐ Pro' : 'Grátis'}</span>
-        <button class="btn btn-ghost btn-sm" id="btn-signout">Sair</button>
+        ${TG_BTN}
+        <span style="background:var(--gold-dim2);color:var(--gold);border:1px solid var(--border2);border-radius:20px;font-size:.70rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:4px 10px">${pro?'⭐ Pro':'Grátis'}</span>
+        <button class="btn btn-ghost btn-sm" id="btn-out">Sair</button>
       </div>
     </nav>
 
     <div style="max-width:640px;margin:0 auto;padding:32px 20px 80px">
-      <!-- HERO -->
       <header style="text-align:center;margin-bottom:36px">
-        <div style="display:flex;justify-content:center;margin-bottom:20px">
-          <img src="${LOGO_URL}" style="width:120px;height:120px;object-fit:contain;filter:drop-shadow(0 0 18px rgba(212,175,55,.55))" />
-        </div>
-        <p style="display:flex;align-items:center;justify-content:center;gap:12px;color:var(--gold);font-size:.68rem;font-weight:600;letter-spacing:.22em;text-transform:uppercase;margin-bottom:16px">
-          <span style="display:inline-block;width:40px;height:1px;background:linear-gradient(90deg,transparent,var(--gold))"></span>
-          Mentor Cognitivo
-          <span style="display:inline-block;width:40px;height:1px;background:linear-gradient(90deg,var(--gold),transparent)"></span>
-        </p>
-        <h1 style="font-family:'Playfair Display',serif;font-size:clamp(1.6rem,5vw,2.4rem);font-weight:700;line-height:1.25;color:var(--text);margin-bottom:14px">
+        <img src="${LOGO}" style="width:100px;height:100px;object-fit:contain;filter:drop-shadow(0 0 18px rgba(212,175,55,.55));margin:0 auto 16px"/>
+        <h1 style="font-family:'Playfair Display',serif;font-size:clamp(1.6rem,5vw,2.2rem);font-weight:700;line-height:1.25;margin-bottom:12px">
           Não é um leitor.<br/><em style="color:var(--gold)">É um Mentor Cognitivo.</em>
         </h1>
-        <p style="color:var(--text2);font-size:.92rem;line-height:1.6">Importe seu PDF. Responda perguntas. Desbloqueie cada capítulo.</p>
+        <p style="color:var(--text2);font-size:.9rem">Importe seu PDF. Responda perguntas. Domine o conteúdo.</p>
       </header>
 
-      ${!isPro ? `<div style="display:flex;align-items:center;justify-content:space-between;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:12px 16px;margin-bottom:20px">
-        <span style="font-size:.84rem;color:var(--text2)">Plano Grátis · ${S.books.length}/1 livro</span>
-        <button class="btn btn-gold btn-sm" id="btn-upgrade">Upgrade Pro ⭐</button>
-      </div>` : ''}
+      ${!pro?`<div style="display:flex;align-items:center;justify-content:space-between;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:12px 16px;margin-bottom:20px">
+        <span style="font-size:.84rem;color:var(--text2)">Grátis · ${S.books.length}/1 livro</span>
+        <button class="btn btn-gold btn-sm" id="btn-pro">Upgrade Pro ⭐</button>
+      </div>`:''}
 
-      <!-- DROPZONE: input visível mas escondido visualmente, sem pointer-events:none -->
-      <label for="file-input" class="dropzone" id="dropzone" style="cursor:pointer;display:block;position:relative">
-        <div class="dropzone-icon">📄</div>
-        <div class="dropzone-title">Toque para selecionar um PDF</div>
-        <div class="dropzone-sub">ou arraste aqui (desktop)</div>
-        <input type="file" id="file-input" accept=".pdf,application/pdf"
-          style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer" />
-      </label>
+      <div class="dropzone" id="dropzone">
+        <div style="font-size:2rem;margin-bottom:10px">📄</div>
+        <div style="font-family:'Playfair Display',serif;font-size:1.05rem;margin-bottom:6px">Selecionar PDF</div>
+        <div style="font-size:.82rem;color:var(--text2)">Toque aqui ou arraste o arquivo</div>
+        <input type="file" id="file-input" accept=".pdf,application/pdf"/>
+      </div>
 
-      <!-- LIBRARY -->
-      <section style="margin-top:48px">
-        <div class="section-label">Minha Biblioteca</div>
+      <section style="margin-top:44px">
+        <div class="sec-lbl">Minha Biblioteca</div>
         ${booksHTML}
       </section>
     </div>
-
-    <!-- PAYWALL MODAL -->
-    <div id="paywall-modal" style="display:none"></div>
-    <!-- DELETE MODAL -->
-    <div id="delete-modal" style="display:none"></div>
   </div>`
 }
 
 function renderBookCard(book) {
   const cover = book.cover_url
-    ? `<img src="${book.cover_url}" alt="${book.title}" />`
+    ? `<img src="${book.cover_url}" alt="${esc(book.title)}" loading="lazy"/>`
     : book.cover_b64
-    ? `<img src="data:image/jpeg;base64,${book.cover_b64}" alt="${book.title}" />`
-    : `<div class="book-cover-empty"><span>${book.emoji||'📖'}</span></div>`
+    ? `<img src="data:image/jpeg;base64,${book.cover_b64}" alt="${esc(book.title)}" loading="lazy"/>`
+    : `<div class="book-cover-empty">${book.emoji||'📖'}</div>`
   return `<div class="book-card" data-id="${book.id}">
-    <div class="book-cover" data-open="${book.id}">
-      ${cover}
-      <div class="book-cover-overlay">▶</div>
-    </div>
+    <div class="book-cover" data-open="${book.id}">${cover}<div class="book-cover-ov">▶</div></div>
     <div class="book-meta">
-      <p class="book-title" title="${book.title}">${book.title}</p>
-      <p class="book-author">${book.author||''}</p>
-      <div class="progress-bar" style="margin-top:8px"><div class="progress-bar-fill" style="width:${book.progress||0}%"></div></div>
+      <p class="book-title" title="${esc(book.title)}">${esc(book.title)}</p>
+      <p class="book-author">${esc(book.author||'')}</p>
+      <div class="pbar" style="margin-top:7px"><div class="pbar-fill" style="width:${book.progress||0}%"></div></div>
       <p class="book-pct">${book.progress||0}%</p>
     </div>
     <div class="book-actions">
-      <button class="book-action-btn" data-cover="${book.id}" title="Alterar capa">📷</button>
-      <button class="book-action-btn del" data-del="${book.id}" data-title="${book.title}" title="Remover">✕</button>
+      <button class="book-act" data-cover="${book.id}" title="Alterar capa">📷</button>
+      <button class="book-act del" data-del="${book.id}" data-title="${esc(book.title)}" title="Remover">✕</button>
     </div>
-    <input type="file" accept="image/*" id="cover-input-${book.id}" style="display:none" />
+    <input type="file" accept="image/*" id="cov-${book.id}" style="display:none"/>
   </div>`
 }
 
 function bindLibrary() {
-  // Sign out
-  document.getElementById('btn-signout')?.addEventListener('click', signOut)
+  $('btn-out')?.addEventListener('click',()=>db.auth.signOut())
+  $('btn-pro')?.addEventListener('click',showPaywall)
 
-  // Upgrade
-  document.getElementById('btn-upgrade')?.addEventListener('click', showPaywall)
-
-  // Dropzone — label já cuida do clique/toque no mobile
-  const dz = document.getElementById('dropzone')
-  const fi = document.getElementById('file-input')
-
-  // Drag & drop (desktop)
-  dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag') })
-  dz.addEventListener('dragleave', () => dz.classList.remove('drag'))
-  dz.addEventListener('drop', e => {
-    e.preventDefault(); dz.classList.remove('drag')
-    const file = e.dataTransfer.files[0]
-    if (file) handleFileSelected(file)
+  // DROPZONE — input cobre toda a área
+  const dz=$('dropzone'), fi=$('file-input')
+  dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('over')})
+  dz.addEventListener('dragleave',()=>dz.classList.remove('over'))
+  dz.addEventListener('drop',e=>{
+    e.preventDefault();dz.classList.remove('over')
+    const f=e.dataTransfer?.files?.[0]
+    if(f) startImport(f)
+  })
+  fi.addEventListener('change',e=>{
+    const f=e.target.files?.[0]
+    if(f) startImport(f)
+    // reset com delay para não interferir no iOS
+    setTimeout(()=>{try{fi.value=''}catch(err){}},1000)
   })
 
-  // Input change — funciona em todos os browsers incluindo Safari iOS
-  fi.addEventListener('change', e => {
-    const file = e.target.files?.[0]
-    if (!file) { toast('Nenhum arquivo selecionado.'); return }
-    // Reset APÓS capturar o arquivo, não antes
-    handleFileSelected(file)
-    setTimeout(() => { try { fi.value = '' } catch(err) {} }, 500)
-  })
-
-  // Book open
-  document.querySelectorAll('[data-open]').forEach(el => {
-    el.addEventListener('click', () => {
-      const id   = el.dataset.open
-      const book = S.books.find(b => b.id === id)
-      if (book) openBook(book)
+  // Book cards
+  document.querySelectorAll('[data-open]').forEach(el=>{
+    el.addEventListener('click',()=>{
+      const book=S.books.find(b=>b.id===el.dataset.open)
+      if(book) openBook(book)
     })
   })
 
   // Cover change
-  document.querySelectorAll('[data-cover]').forEach(btn => {
-    btn.addEventListener('click', e => {
+  document.querySelectorAll('[data-cover]').forEach(btn=>{
+    btn.addEventListener('click',e=>{
       e.stopPropagation()
-      const id = btn.dataset.cover
-      document.getElementById(`cover-input-${id}`)?.click()
+      document.getElementById(`cov-${btn.dataset.cover}`)?.click()
     })
   })
-  document.querySelectorAll('[id^="cover-input-"]').forEach(input => {
-    input.addEventListener('change', async e => {
-      const file = e.target.files?.[0]
-      if (!file) return
-      const id = input.id.replace('cover-input-','')
+  document.querySelectorAll('[id^="cov-"]').forEach(inp=>{
+    inp.addEventListener('change',async e=>{
+      const f=e.target.files?.[0]; if(!f)return
+      const id=inp.id.replace('cov-','')
       try {
-        const url = await uploadCover(id, file)
-        S.books = S.books.map(b => b.id === id ? { ...b, cover_url: url } : b)
-        render('library')
-        toast('Capa atualizada!')
+        const path=`${S.user.id}/${id}.jpg`
+        await db.storage.from('covers').upload(path,f,{upsert:true,contentType:'image/jpeg'})
+        const {data}=db.storage.from('covers').getPublicUrl(path)
+        await db.from('books').update({cover_url:data.publicUrl}).eq('id',id)
+        S.books=S.books.map(b=>b.id===id?{...b,cover_url:data.publicUrl}:b)
+        render('library'); toast('Capa atualizada!')
       } catch { toast('Erro ao atualizar capa.') }
     })
   })
 
   // Delete
-  document.querySelectorAll('[data-del]').forEach(btn => {
-    btn.addEventListener('click', e => {
+  document.querySelectorAll('[data-del]').forEach(btn=>{
+    btn.addEventListener('click',e=>{
       e.stopPropagation()
       showDeleteModal(btn.dataset.del, btn.dataset.title)
     })
   })
 }
 
-function handleFileSelected(file) {
-  if (!file || !file.name.toLowerCase().endsWith('.pdf')) { toast('Selecione um arquivo PDF.'); return }
-  const isPro = S.plan === 'pro'
-  if (!isPro && S.books.length >= 1) { showPaywall(); return }
+// ─── IMPORT ─────────────────────────────────────────────
+function startImport(file) {
+  // Validação
+  if (!file) { toast('Nenhum arquivo selecionado.'); return }
+  const name = file.name||''
+  if (!name.toLowerCase().includes('.pdf') && file.type && !file.type.includes('pdf')) {
+    toast('Por favor, selecione um arquivo PDF.'); return
+  }
+  const pro = S.plan==='pro'
+  if (!pro && S.books.length>=1) { showPaywall(); return }
   runImport(file)
 }
 
-// ── IMPORT ────────────────────────────────────────────
-const IMPORT_STEPS = [
-  'Lendo o PDF…',
-  'Buscando informações do livro…',
-  'Detectando capítulos…',
-  'Gerando perguntas com IA…',
-  'Salvando na biblioteca…',
-]
-
-function renderImporting() {
-  const step  = S.importStep
-  const error = S.importError
-  return `<div class="loading-overlay">
-    <img src="${LOGO_URL}" style="width:72px;filter:drop-shadow(0 0 14px rgba(222,173,42,.5))" />
-    <div class="loading-logo">StepBook</div>
-    ${error
-      ? `<p style="color:var(--red);font-size:.88rem;text-align:center;max-width:280px">${error}</p>
-         <button class="btn btn-ghost btn-sm" onclick="render('library')">← Voltar</button>`
-      : `<div class="spinner"></div>
-         <div class="loading-steps">
-           ${IMPORT_STEPS.map((s,i) => `<div style="color:${i===step?'var(--gold)':i<step?'var(--green)':'var(--text3)'}">${i<step?'✓ ':i===step?'⟳ ':'○ '}${s}</div>`).join('')}
-         </div>`
-    }
-  </div>`
-}
-
 async function runImport(file) {
-  S.importError = null
-  S.importStep  = 0
-  render('importing')
-
-  // Log de debug — aparece na tela de loading
-  const dbg = (msg) => {
-    const el = document.querySelector('.loading-steps')
-    if (el) el.innerHTML += `<div style="color:rgba(255,255,255,.4);font-size:.7rem;margin-top:4px">▸ ${msg}</div>`
-    console.log('[StepBook]', msg)
-  }
+  S.importError=null; S.importStep=0; S.importMsg=''; render('importing')
 
   try {
-    dbg(`Arquivo: ${file.name} (${(file.size/1024).toFixed(0)}KB)`)
-
-    // ── Step 0: Ler PDF ──────────────────────────────────
-    dbg('Iniciando leitura do PDF...')
-    const { pages: rawPages, coverB64, totalPages } = await readPDF(file)
-    dbg(`PDF lido: ${totalPages} páginas`)
-    const pages = cleanTextLocal(rawPages)
-
-    // ── Step 1: Metadados ──────────────────────────────
-    S.importStep = 1; updateImportStep()
-    dbg('Buscando metadados...')
-    const rawTitle = cleanTitle(file.name)
-    const [meta, chapters] = await Promise.all([
-      fetchBookMeta(rawTitle),
-      Promise.resolve(detectChapters(pages)),
-    ])
-    dbg(`Metadados: "${meta.title||rawTitle}" | ${chapters.length} capítulos`)
-
-    // ── Step 2: Capítulos ──────────────────────────────
-    S.importStep = 2; updateImportStep()
-    await new Promise(r => setTimeout(r, 50))
-
-    // ── Step 3: Perguntas ──────────────────────────────
-    S.importStep = 3; updateImportStep()
-    dbg('Gerando perguntas com IA...')
-    let questions = []
+    // STEP 0 — Ler PDF
+    S.importMsg='Iniciando leitura…'; updateImportUI()
+    let pages, total
     try {
-      const total  = pages.length
-      const sample = [
-        ...pages.slice(0, Math.min(28, total)),
-        ...pages.slice(Math.floor(total*0.4), Math.min(Math.floor(total*0.4)+26, total)),
-        ...pages.slice(Math.floor(total*0.7), Math.min(Math.floor(total*0.7)+26, total)),
-      ]
-      const generated = await Promise.race([
-        makeQuestionsAI(sample, meta.title||rawTitle, chapters, meta.description||''),
-        new Promise((_,r) => setTimeout(() => r(new Error('timeout')), 45000))
-      ])
-      if (generated?.length) questions = generated
-      dbg(`Perguntas: ${questions.length} geradas`)
-    } catch (e) {
-      dbg(`Perguntas falhou: ${e.message} — continuando...`)
+      const r = await readPDF(file)
+      pages=cleanPages(r.pages); total=r.total
+      S.importMsg=`${total} páginas lidas`; updateImportUI()
+    } catch(e) {
+      throw new Error(`Falha ao ler PDF: ${e.message}`)
     }
-    questions = injectAutoMCQ(questions, totalPages)
 
-    // ── Step 4: Salvar ─────────────────────────────────
-    S.importStep = 4; updateImportStep()
-    dbg('Salvando livro no banco...')
+    // STEP 1 — Metadados
+    S.importStep=1; S.importMsg='Buscando informações do livro…'; updateImportUI()
+    const rawTitle = cleanTitle(file.name||'Livro')
+    let meta={}, chapters
+    try {
+      ;[meta, chapters] = await Promise.all([
+        fetchMeta(rawTitle),
+        Promise.resolve(detectChapters(pages))
+      ])
+    } catch { meta={}; chapters=detectChapters(pages) }
+    const title = meta.title||rawTitle
 
-    const bookData = {
-      title:       meta.title || rawTitle,
-      author:      meta.author || 'Autor desconhecido',
-      cover_b64:   null,
-      cover_url:   meta.coverUrl || null,
-      emoji:       guessEmoji(meta.title||rawTitle),
-      description: meta.description || '',
-      chapters,
-      questions,
+    // STEP 2 — Capítulos
+    S.importStep=2; S.importMsg=`${chapters.length} capítulos detectados`; updateImportUI()
+    await new Promise(r=>setTimeout(r,80))
+
+    // STEP 3 — Perguntas
+    S.importStep=3; S.importMsg='Gerando perguntas com IA…'; updateImportUI()
+    let questions=[]
+    try {
+      const generated = await Promise.race([
+        genQuestions(pages,title,chapters,meta.description||''),
+        new Promise((_,r)=>setTimeout(()=>r(new Error('timeout')),50000))
+      ])
+      if (generated?.length) questions=generated
+    } catch(e) { console.warn('Perguntas:',e.message) }
+    questions = injectCheckpoints(questions, total)
+
+    // STEP 4 — Salvar
+    S.importStep=4; S.importMsg='Salvando na biblioteca…'; updateImportUI()
+
+    // Inserir livro — campos explícitos, sem spread
+    const {data:saved, error:saveErr} = await db.from('books').insert({
+      user_id:     S.user.id,
+      title:       title,
+      author:      meta.author||'Autor desconhecido',
+      cover_url:   meta.coverUrl||null,
+      emoji:       guessEmoji(title),
+      description: (meta.description||'').slice(0,500),
+      chapters:    chapters,
+      questions:   questions,
       reflections: [],
-      total_pages: totalPages,
+      total_pages: total,
       progress:    0,
       added_at:    new Date().toISOString(),
-    }
-
-    const row = {
-      title:       bookData.title,
-      author:      bookData.author,
-      cover_url:   bookData.cover_url,
-      emoji:       bookData.emoji,
-      description: bookData.description,
-      chapters:    bookData.chapters,
-      questions:   bookData.questions,
-      reflections: bookData.reflections,
-      total_pages: bookData.total_pages,
-      progress:    bookData.progress,
-      added_at:    bookData.added_at,
-      user_id:     S.user.id,
       updated_at:  new Date().toISOString(),
-    }
+    }).select('id').single()
 
-    const { data: saved, error: saveErr } = await sb.from('books').insert(row).select().single()
-    if (saveErr) {
-      dbg(`ERRO ao salvar: ${saveErr.message}`)
-      throw saveErr
-    }
-    dbg(`Livro salvo! ID: ${saved.id.slice(0,8)}...`)
+    if (saveErr) throw new Error(`Banco: ${saveErr.message}`)
 
-    const bookWithId = { ...bookData, id: saved.id }
+    const bookId = saved.id
+    S.importMsg='Abrindo livro…'; updateImportUI()
+
+    // Carregar livros e abrir
     await loadBooks()
-    openBook(bookWithId, pages)
+    const book = S.books.find(b=>b.id===bookId) || {
+      id:bookId, title, author:meta.author||'Autor desconhecido',
+      cover_url:meta.coverUrl||null, emoji:guessEmoji(title),
+      chapters, questions, reflections:[], total_pages:total, progress:0
+    }
+    openBook(book, pages)
 
-    // Páginas em background
-    dbg('Salvando páginas em background...')
-    const pageRows = pages.map(p => ({ book_id: saved.id, page_num: p.num, text: p.text }))
-    const isMob    = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
-    const BATCH    = isMob ? 20 : 100
+    // Salvar páginas em background (não bloqueia)
+    savePagesBackground(bookId, pages)
 
-    ;(async () => {
-      for (let i = 0; i < pageRows.length; i += BATCH) {
-        await sb.from('book_pages')
-          .upsert(pageRows.slice(i, i + BATCH), { onConflict: 'book_id,page_num' })
-          .catch(() => {})
-        if (isMob) await new Promise(r => setTimeout(r, 100))
-      }
-      uploadPDF(saved.id, file).catch(() => {})
-    })()
-
-  } catch (err) {
-    console.error('[StepBook] ERRO:', err)
-    S.importError = `Erro: ${err.message}`
+  } catch(err) {
+    console.error('[Import Error]', err)
+    S.importError = err.message||'Erro desconhecido ao importar.'
     render('importing')
   }
 }
 
-function updateImportStep() {
-  const stepEls = document.querySelectorAll('.loading-steps div')
-  if (!stepEls.length) return
-  stepEls.forEach((el, i) => {
-    el.style.color = i === S.importStep ? 'var(--gold)' : i < S.importStep ? 'var(--green)' : 'var(--text3)'
-    const prefix = i < S.importStep ? '✓ ' : i === S.importStep ? '⟳ ' : '○ '
-    el.textContent = prefix + IMPORT_STEPS[i]
-  })
-}
-
-// ── OPEN BOOK ─────────────────────────────────────────
-async function openBook(book, preloadedPages) {
-  // Garantir que cap 1 sempre livre e resto bloqueado
-  // (corrige livros importados antes da regra atual)
-  if (book.chapters?.length) {
-    book = {
-      ...book,
-      chapters: book.chapters.map((c, i) => ({ ...c, locked: i > 0 }))
+function savePagesBackground(bookId, pages) {
+  const mob = isMob()
+  const BATCH = mob ? 15 : 80
+  ;(async()=>{
+    for (let i=0;i<pages.length;i+=BATCH) {
+      const rows = pages.slice(i,i+BATCH).map(p=>({book_id:bookId,page_num:p.num,text:p.text}))
+      await db.from('book_pages').upsert(rows,{onConflict:'book_id,page_num'}).catch(()=>{})
+      if (mob) await new Promise(r=>setTimeout(r,80))
     }
-  }
-
-  S.currentBook = book
-  S.questions   = book.questions || []
-  S.progress    = book.progress  || 0
-  S.chapOpen    = false
-  S.shareOpen   = false
-  S.quoteText   = ''
-  S.reflPrompt  = null
-
-  if (preloadedPages) {
-    S.pages = preloadedPages
-  } else {
-    S.pages = book.pages || []
-  }
-
-  render('reader')
-
-  if (!S.pages.length) {
-    await loadPages(book.id)
-    renderReaderPages()
-  }
+  })()
 }
 
-// ── READER ────────────────────────────────────────────
+// ─── OPEN BOOK ──────────────────────────────────────────
+async function openBook(book, preloaded) {
+  // Garantir locks corretos
+  if (book.chapters?.length) book={...book,chapters:book.chapters.map((c,i)=>({...c,locked:i>0}))}
+  S.book=book; S.questions=book.questions||[]; S.progress=book.progress||0
+  S.pages=preloaded||[]; S.quoteText=''; S.reflPrompt=null
+  render('reader')
+  if (!S.pages.length) { await loadPages(book.id); renderPages() }
+}
+
+// ─── READER ─────────────────────────────────────────────
 function renderReader() {
-  const book = S.currentBook
+  const b=S.book
+  const sc=calcScore(S.questions,b?.reflections,S.progress)
+  const lvl=getLevel(sc)
+  const TG=`<a href="https://t.me/stepbookreflections" target="_blank" title="Telegram"
+    style="display:flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;background:rgba(0,136,204,.15);border:1px solid rgba(0,136,204,.25);flex-shrink:0">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="#29a8e8"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12L7.19 13.753l-2.95-.924c-.64-.203-.658-.64.135-.953l11.57-4.461c.537-.194 1.006.131.949.806z"/></svg>
+  </a>`
   return `<div style="display:flex;flex-direction:column;height:100vh;overflow:hidden">
-    <!-- TOP BAR -->
     <header style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:rgba(3,8,16,.95);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);flex-shrink:0;gap:8px">
-      <div style="display:flex;gap:8px;align-items:center">
-        <img src="${LOGO_URL}" style="width:28px;height:28px;object-fit:contain" />
-        <button class="btn btn-ghost btn-sm" id="btn-home">← Biblioteca</button>
-        <button class="btn btn-ghost btn-sm" id="btn-chaps">Capítulos</button>
+      <div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
+        <img src="${LOGO}" style="width:26px;height:26px;object-fit:contain"/>
+        <button class="btn btn-ghost btn-sm" id="btn-home">← Lib.</button>
+        <button class="btn btn-ghost btn-sm" id="btn-chaps">Caps</button>
       </div>
-      <span style="font-family:'Playfair Display',serif;font-size:.9rem;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;text-align:center">${book?.title||''}</span>
-      <div style="display:flex;gap:8px;align-items:center">
-        <a href="https://t.me/stepbookreflections" target="_blank" title="Comunidade no Telegram"
-          style="display:flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;background:rgba(0,136,204,0.15);border:1px solid rgba(0,136,204,0.25);flex-shrink:0">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="#29a8e8"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12L7.19 13.753l-2.95-.924c-.64-.203-.658-.64.135-.953l11.57-4.461c.537-.194 1.006.131.949.806z"/></svg>
-        </a>
-        <!-- Score Widget -->
-        <div id="score-widget" onclick="showScoreDetails()" style="cursor:pointer">
-          ${(()=>{ const s=calcDomainScore(S.questions,S.currentBook?.reflections,S.progress); return renderScoreWidget(s,getDomainLevel(s)) })()}
-        </div>
-        <button class="btn btn-ghost btn-sm" id="btn-share">Compartilhar</button>
+      <span style="font-family:'Playfair Display',serif;font-size:.85rem;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;text-align:center">${esc(b?.title||'')}</span>
+      <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+        ${TG}
+        <div id="score-widget">${renderScoreWidget(sc,lvl)}</div>
+        <button class="btn btn-ghost btn-sm" id="btn-share">Share</button>
       </div>
     </header>
-
-    <!-- PROGRESS -->
     <div style="height:2px;background:var(--border);flex-shrink:0">
-      <div id="reader-progress-fill" style="height:100%;background:linear-gradient(90deg,var(--gold),var(--gold2));transition:width .5s ease;width:${S.progress}%"></div>
+      <div id="rprog" style="height:100%;background:linear-gradient(90deg,var(--gold),var(--gold2));transition:width .5s;width:${S.progress}%"></div>
     </div>
-
-    <!-- BODY -->
-    <div id="reader-body" style="flex:1;overflow-y:auto;padding:0 0 80px">
-      <div id="reader-pages" style="max-width:680px;margin:0 auto;padding:32px 20px">
-        <div class="spinner" style="margin:60px auto"></div>
+    <div id="rbody" style="flex:1;overflow-y:auto;padding:0 0 80px">
+      <div id="rpages" style="max-width:680px;margin:0 auto;padding:28px 20px">
+        <div class="spin" style="margin:60px auto"></div>
       </div>
     </div>
-
-    <!-- BOOKMARK -->
-    <button class="bookmark-btn" id="bookmark-btn">${S.progress}%</button>
-
-    <!-- QUOTE BUTTON -->
-    <button class="quote-btn" id="quote-btn" title="Selecione uma frase e crie um card">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-        <path d="M21 15C21 15.5304 20.7893 16.0391 20.4142 16.4142C20.0391 16.7893 19.5304 17 19 17H7L3 21V5C3 4.46957 3.21071 3.96086 3.58579 3.58579C3.96086 3.21071 4.46957 3 5 3H19C19.5304 3 20.0391 3.21071 20.4142 3.58579C20.7893 3.96086 21 4.46957 21 5V15Z" fill="#000" stroke="#000" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
+    <button class="bmark" id="bmark">${S.progress}%</button>
+    <button class="qbtn" id="qbtn" title="Criar card da frase selecionada">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M21 15c0 1.1-.9 2-2 2H7l-4 4V5c0-1.1.9-2 2-2h14c1.1 0 2 .9 2 2v10z" fill="#000"/></svg>
     </button>
-
-    <!-- PANELS -->
     <div id="chap-panel"></div>
     <div id="share-modal"></div>
     <div id="refl-modal"></div>
@@ -1586,635 +917,501 @@ function renderReader() {
 }
 
 function bindReader() {
-  document.getElementById('btn-home').addEventListener('click', () => {
-    // Limpar estado do leitor e voltar imediatamente
-    S.currentBook = null
-    S.pages       = []
-    S.questions   = []
-    S.progress    = 0
-    S.chapOpen    = false
-    S.shareOpen   = false
-    S.quoteText   = ''
-    S.reflPrompt  = null
-    render('library')
-    // Recarrega livros em background para atualizar progresso
-    loadBooks().then(() => render('library'))
+  $('btn-home').addEventListener('click',()=>{
+    S.book=null;S.pages=[];S.questions=[];S.progress=0
+    loadBooks().then(()=>render('library'))
   })
-  document.getElementById('btn-chaps').addEventListener('click', () => showChapPanel())
-  document.getElementById('btn-share').addEventListener('click', () => showShareModal('feed'))
-  document.getElementById('quote-btn').addEventListener('click', () => {
-    const sel = window.getSelection()?.toString().trim()
-    if (!sel || sel.length < 10) { toast('Selecione uma frase do texto primeiro.'); return }
-    S.quoteText = sel
-    showShareModal('stories')
+  $('btn-chaps').addEventListener('click',showChapPanel)
+  $('btn-share').addEventListener('click',()=>showShareModal('feed'))
+  $('qbtn').addEventListener('click',()=>{
+    const sel=window.getSelection()?.toString().trim()
+    if(!sel||sel.length<10){toast('Selecione uma frase do texto primeiro.');return}
+    S.quoteText=sel; showShareModal('stories')
   })
 
-  // Scroll progress
-  const body = document.getElementById('reader-body')
+  const body=$('rbody')
   let scrollTimer
-  body.addEventListener('scroll', () => {
-    clearTimeout(scrollTimer)
-    scrollTimer = setTimeout(() => {
-      const pct = Math.round((body.scrollTop / (body.scrollHeight - body.clientHeight)) * 100)
-      const v   = Math.min(100, Math.max(0, pct || 0))
-      S.progress = v
-      document.getElementById('reader-progress-fill').style.width = v + '%'
-      document.getElementById('bookmark-btn').textContent = v + '%'
-      updateProgress(S.currentBook.id, v)
+  body.addEventListener('scroll',()=>{
+    clearTimeout(scrollTimer); scrollTimer=setTimeout(()=>{
+      const pct=Math.round((body.scrollTop/(body.scrollHeight-body.clientHeight))*100)
+      const v=Math.min(100,Math.max(0,pct||0))
+      S.progress=v
+      $('rprog').style.width=v+'%'
+      $('bmark').textContent=v+'%'
+      updateProgress(S.book.id,v)
+      updateScoreWidget()
 
-      // Milestone reflections
-      if (v >= 60 && (S.currentBook.progress||0) < 60) {
-        const already = S.currentBook.reflections?.some(r => r._milestone === 60)
-        if (!already) { S.reflPrompt = 60; showReflPrompt() }
+      if(v>=60&&(S.book.progress||0)<60){
+        const already=(S.book.reflections||[]).some(r=>r._milestone===60)
+        if(!already){S.reflPrompt=60;showReflPrompt()}
       }
-      if (v >= 100 && (S.currentBook.progress||0) < 100) {
-        const already = S.currentBook.reflections?.some(r => r._milestone === 100)
-        if (!already) {
-          S.reflPrompt = 100
-          showReflPrompt()
-        } else {
-          // Já tem reflexão final — mostrar tela de conclusão com score
-          setTimeout(() => showCompletionScreen(), 800)
-        }
+      if(v>=100&&(S.book.progress||0)<100){
+        const already=(S.book.reflections||[]).some(r=>r._milestone===100)
+        if(!already){S.reflPrompt=100;showReflPrompt()}
+        else setTimeout(()=>showCompletionScreen(),800)
       }
-    }, 100)
+    },120)
   })
 
-  renderReaderPages()
+  renderPages()
 }
 
-function renderReaderPages() {
-  const container = document.getElementById('reader-pages')
-  if (!container) return
-  if (!S.pages.length) {
-    container.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh"><div class="spinner"></div><p style="color:var(--text2);margin-top:12px">Carregando páginas…</p></div>`
+function renderPages() {
+  const c=$('rpages'); if(!c)return
+  if(!S.pages.length){
+    c.innerHTML=`<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:50vh"><div class="spin"></div><p style="color:var(--text2);margin-top:12px">Carregando…</p></div>`
     return
   }
-
-  // Renderiza as primeiras 15 páginas imediatamente
-  // O restante é carregado progressivamente via IntersectionObserver
-  const INITIAL = 15
-  const initial = S.pages.slice(0, INITIAL)
-  const rest    = S.pages.slice(INITIAL)
-
-  container.innerHTML = initial.map(page => renderPageHTML(page)).join('')
-
-  // Sentinel para carregar mais páginas ao scrollar
-  if (rest.length > 0) {
-    const sentinel = document.createElement('div')
-    sentinel.id = 'page-sentinel'
-    sentinel.style.height = '1px'
-    container.appendChild(sentinel)
-
-    let restIndex = 0
-    const CHUNK = 10
-    const obs = new IntersectionObserver(entries => {
-      if (!entries[0].isIntersecting) return
-      const chunk = rest.slice(restIndex, restIndex + CHUNK)
-      if (!chunk.length) { obs.disconnect(); sentinel.remove(); return }
-      chunk.forEach(page => {
-        const div = document.createElement('div')
-        div.innerHTML = renderPageHTML(page)
-        container.insertBefore(div.firstElementChild, sentinel)
-      })
-      bindQBlocks()
-      restIndex += CHUNK
-      if (restIndex >= rest.length) { obs.disconnect(); sentinel.remove() }
-    }, { rootMargin: '400px' })
-    obs.observe(sentinel)
+  const INIT=15
+  c.innerHTML=S.pages.slice(0,INIT).map(renderPage).join('')
+  const rest=S.pages.slice(INIT)
+  if(rest.length){
+    const sen=document.createElement('div'); sen.id='pg-sentinel'; sen.style.height='1px'
+    c.appendChild(sen)
+    let ri=0; const CHUNK=10
+    const obs=new IntersectionObserver(entries=>{
+      if(!entries[0].isIntersecting)return
+      const chunk=rest.slice(ri,ri+CHUNK); if(!chunk.length){obs.disconnect();sen.remove();return}
+      chunk.forEach(pg=>{const d=document.createElement('div');d.innerHTML=renderPage(pg);c.insertBefore(d.firstElementChild,sen)})
+      bindQBlocks(); ri+=CHUNK
+      if(ri>=rest.length){obs.disconnect();sen.remove()}
+    },{rootMargin:'400px'})
+    obs.observe(sen)
   }
-
   bindQBlocks()
 }
 
-function renderPageHTML(page) {
-  const locked = isPageLocked(page.num)
-  const pageQs = S.questions
-    .map((q,qi) => ({...q,_qi:qi}))
-    .filter(q => q.beforePage === page.num)
-  return `<div id="page-${page.num}">
-    <div class="reader-page-label">— pág. ${page.num} —</div>
-    <div class="reader-page-text ${locked?'locked-blur':''}">${escHtml(page.text)}</div>
-    ${pageQs.map(q => renderQBlock(q)).join('')}
+function renderPage(p) {
+  const locked=isLocked(p.num)
+  const qs=S.questions.map((q,qi)=>({...q,_qi:qi})).filter(q=>q.beforePage===p.num)
+  return `<div id="pg-${p.num}">
+    <div class="page-lbl">— pág. ${p.num} —</div>
+    <div class="page-text ${locked?'locked-blur':''}">${esc(p.text)}</div>
+    ${qs.map(renderQBlock).join('')}
   </div>`
 }
 
 function renderQBlock(q) {
-  if (q.quality === 'good') {
-    return `<div class="q-block" data-qi="${q._qi}" style="border-left-color:var(--green)">
-      <div class="q-block-header"><div class="q-dot" style="background:var(--green)"></div><span class="q-badge" style="color:var(--green)">${q.type||'Quiz'}</span></div>
-      <p class="q-question">${escHtml(q.question)}</p>
-      ${q.feedback ? `<p style="font-size:.82rem;color:rgba(255,255,255,.45);font-style:italic;margin-bottom:10px">"${escHtml(q.feedback)}"</p>` : ''}
-      <div class="q-status-good"><span>✓</span> Ótima reflexão! Próximo capítulo desbloqueado 🔓</div>
-    </div>`
-  }
+  if(q.quality==='good') return `<div class="qblock" data-qi="${q._qi}" style="border-left-color:var(--green)">
+    <div class="qblock-hdr"><div class="qdot" style="background:var(--green)"></div><span class="qbadge" style="color:var(--green)">${q.type||'Quiz'}</span></div>
+    <p class="qquestion">${esc(q.question)}</p>
+    ${q.feedback?`<p style="font-size:.82rem;color:rgba(255,255,255,.42);font-style:italic;margin-bottom:10px">"${esc(q.feedback)}"</p>`:''}
+    <div class="q-good"><span>✓</span> Ótima reflexão! Próximo capítulo desbloqueado 🔓</div>
+  </div>`
 
-  if (q.qtype === 'mcq') {
-    const letters = ['A','B','C','D']
-    const opts = (q.options||[]).map((opt,i) => {
-      let cls = 'mcq-option'
-      if (q.answered) {
-        if (i === q.correct) cls += ' correct'
-        else if (i === q.selectedOpt) cls += ' wrong'
-      } else if (i === q.selectedOpt) cls += ' selected'
-      return `<button class="${cls}" data-qi="${q._qi}" data-oi="${i}" ${q.answered?'disabled':''}>
-        <span class="opt-letter">${letters[i]||i}</span>${escHtml(opt)}
-      </button>`
+  if(q.qtype==='mcq'){
+    const lets=['A','B','C','D']
+    const opts=(q.options||[]).map((opt,i)=>{
+      let cls='mcq-opt'
+      if(q.answered){if(i===q.correct)cls+=' ok';else if(i===q.selectedOpt)cls+=' bad'}
+      else if(i===q.selectedOpt)cls+=' sel'
+      return `<button class="${cls}" data-qi="${q._qi}" data-oi="${i}" ${q.answered?'disabled':''}><span class="opt-ltr">${lets[i]||i}</span>${esc(opt)}</button>`
     }).join('')
-    const isCheckpoint = q.type === 'Checkpoint'
-    const badge = isCheckpoint ? '⏸ Checkpoint' : '🎯 Quiz'
-    const chHint = q.chapterTitle ? `<span style="font-size:.70rem;color:var(--text3);display:block;margin-bottom:10px">📖 ${escHtml(q.chapterTitle)}</span>` : ''
-    return `<div class="q-block" data-qi="${q._qi}" style="${isCheckpoint?'border-left-color:var(--gold2)':''}">
-      <div class="q-block-header"><div class="q-dot"></div><span class="q-badge">${badge}</span></div>
-      ${chHint}
-      <p class="q-question">${escHtml(q.question)}</p>
-      <div class="mcq-options">${opts}</div>
-      ${!q.answered ? `<button class="btn btn-gold btn-sm mcq-confirm" data-qi="${q._qi}" ${q.selectedOpt===undefined||q.selectedOpt===null?'disabled':''}>Confirmar resposta</button>` : ''}
-      ${q.answered && q.quality==='retry' ? `<div class="q-status-retry">Quase lá! Releia o capítulo e tente responder com mais detalhes. Você consegue! 💪</div>
-        <button class="btn btn-ghost btn-sm mcq-retry" data-qi="${q._qi}">Tentar novamente</button>` : ''}
+    const badge=q.type==='Checkpoint'?'⏸ Checkpoint':'🎯 Quiz'
+    return `<div class="qblock" data-qi="${q._qi}" ${q.type==='Checkpoint'?'style="border-left-color:var(--gold2)"':''}>
+      <div class="qblock-hdr"><div class="qdot"></div><span class="qbadge">${badge}</span></div>
+      ${q.chapterTitle?`<span style="font-size:.68rem;color:var(--text3);display:block;margin-bottom:8px">📖 ${esc(q.chapterTitle)}</span>`:''}
+      <p class="qquestion">${esc(q.question)}</p>
+      <div class="mcq-opts">${opts}</div>
+      ${!q.answered?`<button class="btn btn-gold btn-sm mcq-confirm" data-qi="${q._qi}" ${q.selectedOpt==null?'disabled':''}>Confirmar →</button>`:''}
+      ${q.answered&&q.quality==='retry'?`<div class="q-retry">Quase lá! Releia o trecho e tente novamente. 💪</div>
+        <button class="btn btn-ghost btn-sm mcq-retry" data-qi="${q._qi}" style="margin-top:6px">Tentar novamente</button>`:''}
     </div>`
   }
 
-  // Text answer
-  return `<div class="q-block" data-qi="${q._qi}">
-    <div class="q-block-header"><div class="q-dot"></div><span class="q-badge">Reflexão</span></div>
-    ${q.chapterTitle ? `<span style="font-size:.70rem;color:var(--text3);letter-spacing:.08em;text-transform:uppercase;display:block;margin-bottom:10px">📖 ${escHtml(q.chapterTitle)}</span>` : ''}
-    <p class="q-question">${escHtml(q.question)}</p>
-    ${q.answered && q.quality==='close' ? `<div class="q-status-close">💡 ${escHtml(q.feedback||'Boa reflexão! Tente aprofundar um pouco mais.')}</div>` : ''}
-    ${q.answered && q.quality==='retry' ? `<div class="q-status-retry">🔄 ${escHtml(q.feedback||'Tente conectar mais com o conteúdo do capítulo.')}</div>` : ''}
-    <textarea class="input q-textarea" data-qi="${q._qi}" placeholder="Escreva com suas próprias palavras o que compreendeu…" rows="4" style="margin-bottom:12px">${escHtml(q.answer||'')}</textarea>
-    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-      <button class="btn btn-gold btn-sm q-submit" data-qi="${q._qi}">Enviar reflexão →</button>
-      ${q.answered ? `<button class="btn btn-ghost btn-sm q-retry-text" data-qi="${q._qi}">Reescrever</button>` : ''}
-      <span style="font-size:.72rem;color:var(--text3);margin-left:auto">mín. 20 chars</span>
+  return `<div class="qblock" data-qi="${q._qi}">
+    <div class="qblock-hdr"><div class="qdot"></div><span class="qbadge">Reflexão</span></div>
+    ${q.chapterTitle?`<span style="font-size:.68rem;color:var(--text3);display:block;margin-bottom:8px">📖 ${esc(q.chapterTitle)}</span>`:''}
+    <p class="qquestion">${esc(q.question)}</p>
+    ${q.answered&&q.quality==='close'?`<div class="q-close">💡 ${esc(q.feedback||'Boa reflexão! Aprofunde um pouco mais.')}</div>`:''}
+    ${q.answered&&q.quality==='retry'?`<div class="q-retry">🔄 ${esc(q.feedback||'Tente conectar mais com o conteúdo.')}</div>`:''}
+    <textarea class="inp q-ta" data-qi="${q._qi}" placeholder="Escreva sua reflexão aqui…" rows="4" style="margin-bottom:10px">${esc(q.answer||'')}</textarea>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <button class="btn btn-gold btn-sm q-submit" data-qi="${q._qi}">Enviar →</button>
+      ${q.answered?`<button class="btn btn-ghost btn-sm q-retry-txt" data-qi="${q._qi}">Reescrever</button>`:''}
+      <span style="font-size:.70rem;color:var(--text3);margin-left:auto">mín. 20 chars</span>
     </div>
   </div>`
 }
 
 function bindQBlocks() {
-  // MCQ option select
-  document.querySelectorAll('.mcq-option:not([disabled])').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const qi = parseInt(btn.dataset.qi)
-      const oi = parseInt(btn.dataset.oi)
-      patchQuestion(qi, { selectedOpt: oi })
-    })
+  document.querySelectorAll('.mcq-opt:not([disabled])').forEach(btn=>{
+    btn.addEventListener('click',()=>patchQ(+btn.dataset.qi,{selectedOpt:+btn.dataset.oi}))
   })
-
-  // MCQ confirm
-  document.querySelectorAll('.mcq-confirm').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const qi = parseInt(btn.dataset.qi)
-      const q  = S.questions[qi]
-      const ok = q.selectedOpt === q.correct
-      patchQuestion(qi, { answered: true, quality: ok?'good':'retry', answer: q.options[q.selectedOpt] })
-      if (!ok) toast('Resposta incorreta. Tente novamente!')
+  document.querySelectorAll('.mcq-confirm').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const qi=+btn.dataset.qi, q=S.questions[qi]
+      const ok=q.selectedOpt===q.correct
+      patchQ(qi,{answered:true,quality:ok?'good':'retry',answer:q.options[q.selectedOpt]})
+      if(!ok)toast('Resposta incorreta. Tente novamente!')
       updateScoreWidget()
     })
   })
-
-  // MCQ retry
-  document.querySelectorAll('.mcq-retry').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const qi = parseInt(btn.dataset.qi)
-      patchQuestion(qi, { answered: false, selectedOpt: null, quality: null })
-    })
+  document.querySelectorAll('.mcq-retry').forEach(btn=>{
+    btn.addEventListener('click',()=>patchQ(+btn.dataset.qi,{answered:false,selectedOpt:null,quality:null}))
   })
-
-  // Text submit
-  document.querySelectorAll('.q-submit').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const qi   = parseInt(btn.dataset.qi)
-      const q    = S.questions[qi]
-      const ta   = document.querySelector(`.q-textarea[data-qi="${qi}"]`)
-      const text = ta?.value?.trim() || ''
-      if (text.length < 20) { toast('Escreva pelo menos algumas palavras para sua reflexão 😊'); return }
-      btn.disabled = true
-      btn.innerHTML = '<span class="spinner" style="width:14px;height:14px;border-width:2px"></span> Avaliando…'
+  document.querySelectorAll('.q-submit').forEach(btn=>{
+    btn.addEventListener('click',async()=>{
+      const qi=+btn.dataset.qi, q=S.questions[qi]
+      const ta=document.querySelector(`.q-ta[data-qi="${qi}"]`)
+      const text=ta?.value?.trim()||''
+      if(text.length<20){toast('Escreva pelo menos algumas palavras 😊');return}
+      btn.disabled=true; btn.innerHTML='<span class="spin spin-sm"></span> Avaliando…'
       try {
-        const page   = S.pages.find(p => p.num === (q.beforePage||1))
-        const result = await evalAnswerAI(q.question, text, page?.text||'', S.currentBook?.title||'')
-        const score   = result?.score ?? 0
-        const quality = score >= 70 ? 'good' : score >= 40 ? 'close' : 'retry'
-        patchQuestion(qi, { answered: true, answer: text, quality, feedback: result?.feedback, score })
-        // Atualiza widget de score após resposta
+        const pg=S.pages.find(p=>p.num===(q.beforePage||1))
+        const res=await evalAnswer(q.question,text,pg?.text||'',S.book?.title||'')
+        const sc=res?.score??50
+        const quality=sc>=70?'good':sc>=40?'close':'retry'
+        patchQ(qi,{answered:true,answer:text,quality,feedback:res?.feedback,score:sc})
         updateScoreWidget()
-      } catch { toast('Erro ao avaliar. Tente novamente.'); btn.disabled = false; btn.textContent = 'Enviar resposta' }
+      } catch { toast('Erro ao avaliar. Tente novamente.'); btn.disabled=false; btn.innerHTML='Enviar →' }
     })
   })
-
-  // Text retry
-  document.querySelectorAll('.q-retry-text').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const qi = parseInt(btn.dataset.qi)
-      patchQuestion(qi, { answered: false, quality: null, feedback: null })
-    })
+  document.querySelectorAll('.q-retry-txt').forEach(btn=>{
+    btn.addEventListener('click',()=>patchQ(+btn.dataset.qi,{answered:false,quality:null,feedback:null}))
   })
 }
 
-function patchQuestion(idx, patch) {
-  S.questions = S.questions.map((q,i) => i === idx ? {...q,...patch} : q)
-  updateQuestions(S.currentBook.id, S.questions)
-  // Re-render that q-block in place
-  const block = document.querySelector(`.q-block[data-qi="${idx}"]`)
-  if (block) {
-    const q = {...S.questions[idx], _qi: idx}
-    block.outerHTML = renderQBlock(q)
-    // Rebind all q blocks
-    bindQBlocks()
-  }
+function patchQ(idx, patch) {
+  S.questions=S.questions.map((q,i)=>i===idx?{...q,...patch}:q)
+  updateQuestions(S.book.id,S.questions)
+  const block=document.querySelector(`.qblock[data-qi="${idx}"]`)
+  if(block){block.outerHTML=renderQBlock({...S.questions[idx],_qi:idx});bindQBlocks()}
 }
 
-// ── CHAP PANEL ────────────────────────────────────────
+// ─── CHAP PANEL ─────────────────────────────────────────
 function showChapPanel() {
-  const panel = document.getElementById('chap-panel')
-  const chaps = S.currentBook?.chapters || []
-  panel.innerHTML = `<div class="chap-panel">
-    <div class="chap-backdrop" id="chap-back"></div>
+  const el=$('chap-panel'), chaps=S.book?.chapters||[]
+  el.innerHTML=`<div class="chap-panel">
+    <div class="chap-back" id="chap-back"></div>
     <div class="chap-drawer">
       <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border)">
-        <span style="font-family:'Playfair Display',serif;font-size:1rem;color:var(--text)">Capítulos</span>
-        <button class="btn btn-ghost btn-sm" id="chap-close">✕</button>
+        <span style="font-family:'Playfair Display',serif">Capítulos</span>
+        <button class="btn btn-ghost btn-sm" id="chap-x">✕</button>
       </div>
-      ${chaps.map((c, i) => {
-        // Usa isPageLocked para estado real — consistente com o leitor
-        const locked = i > 0 && isPageLocked(c.pageNum)
-        return `<div class="chap-item ${locked?'locked':''}" data-page="${c.pageNum}" data-locked="${locked}">
-          <span class="chap-lock">${i===0?'📖':locked?'🔒':'✅'}</span>
-          <div style="flex:1">
-            <span class="chap-name">${escHtml(c.title)}</span>
-            ${locked ? `<div style="font-size:.68rem;color:var(--text3);margin-top:2px">Responda a pergunta para desbloquear</div>` : ''}
+      ${chaps.map((c,i)=>{
+        const locked=i>0&&isLocked(c.pageNum)
+        return `<div class="chap-item ${locked?'locked':''}" data-pg="${c.pageNum}" data-locked="${locked}" style="align-items:flex-start">
+          <span style="font-size:.85rem;flex-shrink:0;margin-top:2px">${i===0?'📖':locked?'🔒':'✅'}</span>
+          <div style="flex:1;overflow:hidden">
+            <div style="font-size:.85rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.title)}</div>
+            ${locked?`<div style="font-size:.67rem;color:var(--text3)">Responda a pergunta para desbloquear</div>`:''}
           </div>
-          <span class="chap-page">pág ${c.pageNum}</span>
+          <span style="font-size:.68rem;color:var(--text3);flex-shrink:0">pág ${c.pageNum}</span>
         </div>`
       }).join('')}
     </div>
   </div>`
-
-  document.getElementById('chap-back').addEventListener('click', () => { panel.innerHTML = '' })
-  document.getElementById('chap-close').addEventListener('click', () => { panel.innerHTML = '' })
-  document.querySelectorAll('.chap-item').forEach(el => {
-    el.addEventListener('click', () => {
-      const locked = el.dataset.locked === 'true'
-      if (locked) {
-        toast('🔒 Responda a pergunta do capítulo anterior para desbloquear.')
-        return
-      }
-      panel.innerHTML = ''
-      const pageNum = parseInt(el.dataset.page)
-      setTimeout(() => {
-        const target = document.getElementById(`page-${pageNum}`)
-        if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' })
-      }, 100)
+  $('chap-back').addEventListener('click',()=>el.innerHTML='')
+  $('chap-x').addEventListener('click',()=>el.innerHTML='')
+  document.querySelectorAll('.chap-item').forEach(item=>{
+    item.addEventListener('click',()=>{
+      if(item.dataset.locked==='true'){toast('🔒 Responda a pergunta anterior para desbloquear.');return}
+      el.innerHTML=''
+      setTimeout(()=>{const t=document.getElementById(`pg-${item.dataset.pg}`);if(t)t.scrollIntoView({behavior:'smooth'})},100)
     })
   })
 }
 
-// ── SHARE MODAL ───────────────────────────────────────
-let shareCanvas = null
+// ─── SHARE ──────────────────────────────────────────────
+let _shareCanvas=null
 
-function showShareModal(mode) {
-  S.shareMode = mode
-  const modal = document.getElementById('share-modal')
-  const book  = S.currentBook
-  const title = cleanTitle(book?.title||'')
-
-  modal.innerHTML = `<div class="overlay center" id="share-overlay">
+function showShareModal(mode='feed') {
+  const modal=$('share-modal'), book=S.book, title=cleanTitle(book?.title||'')
+  modal.innerHTML=`<div class="overlay center" id="sh-ov">
     <div class="modal" style="max-width:520px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-        <span style="font-family:'Playfair Display',serif;font-size:1.1rem;color:var(--text)">Compartilhar</span>
-        <button class="btn btn-ghost btn-sm" id="share-close">✕</button>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <span style="font-family:'Playfair Display',serif;font-size:1.05rem">Compartilhar</span>
+        <button class="btn btn-ghost btn-sm" id="sh-x">✕</button>
       </div>
-
-      <!-- Tabs -->
-      <div style="display:flex;gap:8px;margin-bottom:16px;border-bottom:1px solid var(--border);padding-bottom:12px">
-        <button class="btn btn-sm ${mode==='feed'?'btn-gold':'btn-ghost'}" id="tab-feed">📊 Card Feed</button>
-        <button class="btn btn-sm ${mode==='stories'?'btn-gold':'btn-ghost'}" id="tab-stories">💬 Card Stories</button>
+      <div style="display:flex;gap:8px;margin-bottom:14px;border-bottom:1px solid var(--border);padding-bottom:12px">
+        <button class="btn btn-sm ${mode==='feed'?'btn-gold':'btn-ghost'}" id="tab-feed">📊 Feed</button>
+        <button class="btn btn-sm ${mode==='stories'?'btn-gold':'btn-ghost'}" id="tab-sto">💬 Stories</button>
       </div>
-
-      <div id="share-content"></div>
-
-      <div class="share-grid" style="margin-top:8px">
-        <button class="btn btn-gold btn-sm" id="share-wa">💬 WhatsApp</button>
-        <button class="btn btn-ghost btn-sm" id="share-ig">📸 Instagram</button>
-        <button class="btn btn-ghost btn-sm" id="share-copy">📋 Copiar link</button>
-        <button class="btn btn-ghost btn-sm" id="share-dl">⬇ Baixar</button>
+      <div id="sh-content"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px">
+        <button class="btn btn-gold btn-sm" id="sh-wa">💬 WhatsApp</button>
+        <button class="btn btn-ghost btn-sm" id="sh-ig">📸 Instagram</button>
+        <button class="btn btn-ghost btn-sm" id="sh-copy">📋 Copiar link</button>
+        <button class="btn btn-ghost btn-sm" id="sh-dl">⬇ Baixar</button>
       </div>
-      <button class="btn btn-ghost" style="width:100%;margin-top:8px" id="share-close2">Fechar</button>
+      <button class="btn btn-ghost" style="width:100%;margin-top:8px" id="sh-x2">Fechar</button>
     </div>
   </div>`
 
-  document.getElementById('share-overlay').addEventListener('click', e => { if (e.target === e.currentTarget) modal.innerHTML = '' })
-  document.getElementById('share-close').addEventListener('click', () => modal.innerHTML = '')
-  document.getElementById('share-close2').addEventListener('click', () => modal.innerHTML = '')
-  document.getElementById('tab-feed').addEventListener('click', () => showShareModal('feed'))
-  document.getElementById('tab-stories').addEventListener('click', () => showShareModal('stories'))
+  const close=()=>modal.innerHTML=''
+  $('sh-ov').addEventListener('click',e=>{if(e.target===$('sh-ov'))close()})
+  $('sh-x').addEventListener('click',close); $('sh-x2').addEventListener('click',close)
+  $('tab-feed').addEventListener('click',()=>showShareModal('feed'))
+  $('tab-sto').addEventListener('click',()=>showShareModal('stories'))
 
-  renderShareContent(mode, title)
+  buildShareContent(mode, title)
 
-  const SHARE_MSG = 'Baixe o StepBook.vercel.app'
-  document.getElementById('share-wa').addEventListener('click', async () => {
-    const file = await canvasToFile(shareCanvas, title)
-    if (file && navigator.canShare && navigator.canShare({ files:[file] })) {
-      try { await navigator.share({ files:[file], text: mode==='stories'?SHARE_MSG:`Estou lendo "${title}" — ${S.progress}% concluído!\n\nstepbook.vercel.app` }); return } catch(e) { if(e.name==='AbortError') return }
-    }
-    downloadCanvas(shareCanvas, title, mode)
-    setTimeout(() => window.open(`https://wa.me/?text=${encodeURIComponent(mode==='stories'?SHARE_MSG:`Estou lendo "${title}" — ${S.progress}% concluído!\n\nstepbook.vercel.app`)}`, '_blank'), 600)
+  const MSG=`Baixe o StepBook.vercel.app`
+  $('sh-wa').addEventListener('click',async()=>{
+    const f=await canvasToFile(_shareCanvas,title)
+    if(f&&navigator.canShare?.({files:[f]})){try{await navigator.share({files:[f],text:MSG});return}catch(e){if(e.name==='AbortError')return}}
+    dlCanvas(_shareCanvas,title,mode)
+    setTimeout(()=>window.open(`https://wa.me/?text=${encodeURIComponent(MSG)}`,'_blank'),500)
   })
-  document.getElementById('share-ig').addEventListener('click', async () => {
-    const file = await canvasToFile(shareCanvas, title)
-    if (file && navigator.canShare && navigator.canShare({ files:[file] })) {
-      try { await navigator.share({ files:[file] }); return } catch(e) { if(e.name==='AbortError') return }
-    }
-    downloadCanvas(shareCanvas, title, mode)
-    toast('Imagem salva! Abra Instagram → Story → galeria 📸')
+  $('sh-ig').addEventListener('click',async()=>{
+    const f=await canvasToFile(_shareCanvas,title)
+    if(f&&navigator.canShare?.({files:[f]})){try{await navigator.share({files:[f]});return}catch(e){if(e.name==='AbortError')return}}
+    dlCanvas(_shareCanvas,title,mode); toast('Imagem salva! Abra o Instagram → Story 📸')
   })
-  document.getElementById('share-copy').addEventListener('click', async () => {
-    await navigator.clipboard.writeText(SHARE_MSG).catch(() => {})
-    toast('Copiado!')
-  })
-  document.getElementById('share-dl').addEventListener('click', () => downloadCanvas(shareCanvas, title, mode))
+  $('sh-copy').addEventListener('click',()=>{navigator.clipboard?.writeText(MSG).catch(()=>{});toast('Copiado!')})
+  $('sh-dl').addEventListener('click',()=>dlCanvas(_shareCanvas,title,mode))
 }
 
-function renderShareContent(mode, title) {
-  const c = document.getElementById('share-content')
-  if (mode === 'feed') {
-    c.innerHTML = `<canvas id="share-canvas-preview" style="width:100%;border-radius:8px;border:1px solid var(--border2);margin-bottom:12px"></canvas>`
-    shareCanvas = document.getElementById('share-canvas-preview')
-    renderFeedCard(shareCanvas, title)
+function buildShareContent(mode, title) {
+  const c=$('sh-content')
+  if(mode==='feed'){
+    c.innerHTML=`<canvas id="share-canvas-preview"></canvas>`
+    _shareCanvas=$('share-canvas-preview')
+    buildFeedCard(_shareCanvas, title)
   } else {
-    // Canvas offscreen (tamanho real 1080x1920) — preview via <img>
-    c.innerHTML = `
-      <div style="display:flex;justify-content:center;margin-bottom:12px;position:relative">
-        <div id="stories-preview-wrap" style="position:relative;width:191px;height:340px;border-radius:8px;border:1px solid var(--border2);overflow:hidden;background:#04080f">
-          <img id="stories-preview-img" style="width:100%;height:100%;object-fit:cover;display:none" />
-          <div id="canvas-loader" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(3,8,16,.9);border-radius:8px">
-            <div class="spinner"></div>
-            <p style="font-size:.75rem;color:var(--text2);margin-top:8px">Gerando card premium…</p>
-          </div>
+    c.innerHTML=`<div style="display:flex;justify-content:center;margin-bottom:12px">
+      <div style="position:relative;width:180px;height:320px;border-radius:8px;border:1px solid var(--border2);overflow:hidden;background:#04080f">
+        <img id="sto-img" style="width:100%;height:100%;object-fit:cover;display:none"/>
+        <div id="sto-load" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center">
+          <div class="spin"></div><p style="font-size:.72rem;color:var(--text2);margin-top:8px">Gerando…</p>
         </div>
       </div>
-      ${S.quoteText ? `<p style="font-size:.82rem;color:var(--gold);font-style:italic;margin-bottom:8px">"${S.quoteText.slice(0,100)}${S.quoteText.length>100?'…':''}"</p>` : ''}
-      <div class="share-box" id="share-box" style="display:none">
-        <span class="share-msg">Baixe o StepBook.vercel.app</span>
-        <button class="btn btn-ghost btn-sm" id="copy-share-msg">Copiar</button>
-      </div>
-    `
-
-    // Canvas offscreen — tamanho real, sem distorção
-    shareCanvas = document.createElement('canvas')
-    const quoteText = S.quoteText || `${S.progress}% do livro lido com leitura ativa pelo StepBook.`
-
-    generatePremiumCard(shareCanvas, quoteText, title).then(() => {
-      // Mostrar como imagem no preview
-      const img    = document.getElementById('stories-preview-img')
-      const loader = document.getElementById('canvas-loader')
-      const sb     = document.getElementById('share-box')
-      if (img) {
-        img.src     = shareCanvas.toDataURL('image/jpeg', 0.85)
-        img.style.display = 'block'
-      }
-      if (loader) loader.style.display = 'none'
-      if (sb)     sb.style.display = 'flex'
-    }).catch(() => {
-      const loader = document.getElementById('canvas-loader')
-      if (loader) loader.innerHTML = '<p style="color:var(--red);font-size:.8rem">Erro ao gerar card.</p>'
-    })
-
-    document.getElementById('copy-share-msg')?.addEventListener('click', async () => {
-      await navigator.clipboard.writeText('Baixe o StepBook.vercel.app').catch(() => {})
-      toast('Copiado!')
-    })
+    </div>`
+    _shareCanvas=document.createElement('canvas')
+    const quote=S.quoteText||`${S.progress}% do livro lido com leitura ativa no StepBook.`
+    buildStoriesCard(_shareCanvas, quote, title).then(()=>{
+      const img=$('sto-img'), loader=$('sto-load')
+      if(img){img.src=_shareCanvas.toDataURL('image/jpeg',.85);img.style.display='block'}
+      if(loader)loader.style.display='none'
+    }).catch(()=>{const l=$('sto-load');if(l)l.innerHTML='<p style="color:var(--red);font-size:.75rem">Erro ao gerar card.</p>'})
   }
 }
 
-async function renderFeedCard(canvas, bookTitle) {
-  const ctx = canvas.getContext('2d')
-  const W = 1080, H = 1080
-  canvas.width = W; canvas.height = H
-
-  const bg = ctx.createLinearGradient(0,0,0,H)
-  bg.addColorStop(0,'#080c14'); bg.addColorStop(1,'#101820')
-  ctx.fillStyle = bg; ctx.fillRect(0,0,W,H)
-
-  const barG = ctx.createLinearGradient(0,0,W,0)
-  barG.addColorStop(0,'transparent'); barG.addColorStop(.15,'#D4AF37')
-  barG.addColorStop(.85,'#D4AF37'); barG.addColorStop(1,'transparent')
-  ctx.fillStyle = barG; ctx.fillRect(0,0,W,5)
-
-  // Logo
-  const logo = await new Promise(r => { const img = new Image(); img.crossOrigin='anonymous'; img.onload=()=>r(img); img.onerror=()=>r(null); img.src=LOGO_URL })
-  if (logo) { ctx.save(); ctx.shadowColor='#D4AF37'; ctx.shadowBlur=15; ctx.drawImage(logo,W-125,18,50,50); ctx.restore() }
-
-  ctx.fillStyle='#D4AF37'; ctx.font='bold 20px sans-serif'
-  ctx.textAlign='right'; ctx.fillText('StepBook',W-135,52); ctx.textAlign='left'
-
-  // Cover
-  const book = S.currentBook
-  const coverSrc = book?.cover_url || (book?.cover_b64 ? `data:image/jpeg;base64,${book.cover_b64}` : null)
-  const CX=80,CY=180,CW=285,CH=430
-  if (coverSrc) {
-    await new Promise(res => {
-      const img=new Image(); img.crossOrigin='anonymous'
-      img.onload=()=>{ ctx.save(); ctx.shadowColor='rgba(0,0,0,.9)'; ctx.shadowBlur=40; ctx.shadowOffsetX=10; ctx.drawImage(img,CX,CY,CW,CH); ctx.restore(); ctx.strokeStyle='#D4AF37'; ctx.lineWidth=2; ctx.strokeRect(CX,CY,CW,CH); res() }
-      img.onerror=res; img.src=coverSrc
-    })
-  } else {
-    ctx.fillStyle='#0d1a2e'; ctx.fillRect(CX,CY,CW,CH)
-    ctx.strokeStyle='#D4AF37'; ctx.lineWidth=2; ctx.strokeRect(CX,CY,CW,CH)
-    ctx.fillStyle='#D4AF37'; ctx.font='70px serif'; ctx.textAlign='center'
-    ctx.fillText(book?.emoji||'📖',CX+CW/2,CY+CH/2+24); ctx.textAlign='left'
-  }
-
-  const RX=415; ctx.textAlign='left'
-  ctx.fillStyle='rgba(212,175,55,.15)'; roundRect(ctx,RX,190,180,32,16); ctx.fill()
-  ctx.fillStyle='#D4AF37'; ctx.font='bold 11px sans-serif'
-  ctx.textAlign='center'; ctx.fillText('STEPBOOK',RX+90,211); ctx.textAlign='left'
-
-  ctx.fillStyle='#FFF'; ctx.font='bold 34px "Georgia",serif'
-  wrapTextL(ctx,bookTitle,RX,280,585,44,3)
-  ctx.fillStyle='rgba(255,255,255,.55)'; ctx.font='400 21px sans-serif'
-  ctx.fillText((book?.author||'').slice(0,45),RX,395)
-
-  for(let i=0;i<5;i++){ctx.fillStyle=i<5?'#D4AF37':'rgba(255,255,255,.2)';ctx.font='26px serif';ctx.fillText('★',RX+i*32,440)}
-
-  ctx.fillStyle='rgba(255,255,255,.1)'; roundRect(ctx,RX,466,540,8,4); ctx.fill()
-  const pw=(S.progress/100)*540
-  const pG=ctx.createLinearGradient(RX,0,RX+pw,0)
-  pG.addColorStop(0,'#D4AF37'); pG.addColorStop(1,'#f5c842')
-  ctx.fillStyle=pG; roundRect(ctx,RX,466,pw,8,4); ctx.fill()
-  ctx.fillStyle='#D4AF37'; ctx.font='bold 15px sans-serif'
-
-  // Mostrar score de domínio no card
-  const domScore = calcDomainScore(S.questions, book?.reflections, S.progress)
-  const domLvl   = getDomainLevel(domScore)
-  ctx.fillText(`${S.progress}% lido  ·  ${domScore}% domínio  ${domLvl.emoji}`,RX,500)
-
+async function buildFeedCard(canvas, bookTitle) {
+  const ctx=canvas.getContext('2d'), W=1080, H=1080
+  canvas.width=W;canvas.height=H
+  const bg=ctx.createLinearGradient(0,0,0,H)
+  bg.addColorStop(0,'#080c14');bg.addColorStop(1,'#101820')
+  ctx.fillStyle=bg;ctx.fillRect(0,0,W,H)
+  const bar=ctx.createLinearGradient(0,0,W,0)
+  bar.addColorStop(0,'transparent');bar.addColorStop(.15,'#D4AF37');bar.addColorStop(.85,'#D4AF37');bar.addColorStop(1,'transparent')
+  ctx.fillStyle=bar;ctx.fillRect(0,0,W,5)
+  const logo=await loadImg(LOGO)
+  if(logo){ctx.save();ctx.shadowColor='#D4AF37';ctx.shadowBlur=15;ctx.drawImage(logo,W-125,18,50,50);ctx.restore()}
+  ctx.fillStyle='#D4AF37';ctx.font='bold 20px sans-serif';ctx.textAlign='right';ctx.fillText('StepBook',W-135,52);ctx.textAlign='left'
+  const book=S.book,CX=80,CY=180,CW=285,CH=430
+  const coverSrc=book?.cover_url||(book?.cover_b64?`data:image/jpeg;base64,${book.cover_b64}`:null)
+  if(coverSrc){await new Promise(res=>{const img=new Image();img.crossOrigin='anonymous';img.onload=()=>{ctx.save();ctx.shadowColor='rgba(0,0,0,.9)';ctx.shadowBlur=40;ctx.shadowOffsetX=10;ctx.drawImage(img,CX,CY,CW,CH);ctx.restore();ctx.strokeStyle='#D4AF37';ctx.lineWidth=2;ctx.strokeRect(CX,CY,CW,CH);res()};img.onerror=res;img.src=coverSrc})}
+  else{ctx.fillStyle='#0d1a2e';ctx.fillRect(CX,CY,CW,CH);ctx.strokeStyle='#D4AF37';ctx.lineWidth=2;ctx.strokeRect(CX,CY,CW,CH);ctx.fillStyle='#D4AF37';ctx.font='70px serif';ctx.textAlign='center';ctx.fillText(book?.emoji||'📖',CX+CW/2,CY+CH/2+24);ctx.textAlign='left'}
+  const RX=415
+  ctx.fillStyle='#fff';ctx.font='bold 32px serif';wrapL(ctx,bookTitle,RX,270,565,44,3)
+  ctx.fillStyle='rgba(255,255,255,.55)';ctx.font='400 20px sans-serif';ctx.fillText((book?.author||'').slice(0,45),RX,380)
+  ctx.fillStyle='rgba(255,255,255,.1)';rRect(ctx,RX,460,540,8,4);ctx.fill()
+  const pw=(S.progress/100)*540,pG=ctx.createLinearGradient(RX,0,RX+pw,0)
+  pG.addColorStop(0,'#D4AF37');pG.addColorStop(1,'#f5c842');ctx.fillStyle=pG;rRect(ctx,RX,460,pw,8,4);ctx.fill()
+  const sc=calcScore(S.questions,book?.reflections,S.progress),lv=getLevel(sc)
+  ctx.fillStyle='#D4AF37';ctx.font='bold 15px sans-serif';ctx.fillText(`${S.progress}% lido · ${sc}% domínio ${lv.emoji}`,RX,494)
   const dG=ctx.createLinearGradient(80,0,W-80,0)
-  dG.addColorStop(0,'transparent'); dG.addColorStop(.2,'rgba(212,175,55,.6)')
-  dG.addColorStop(.8,'rgba(212,175,55,.6)'); dG.addColorStop(1,'transparent')
-  ctx.strokeStyle=dG; ctx.lineWidth=1
-  ctx.beginPath(); ctx.moveTo(80,685); ctx.lineTo(W-80,685); ctx.stroke()
-
-  const reflText = book?.reflections?.filter(r=>r.answered)?.[0]?.answer || `${S.progress}% do livro lido com leitura ativa pelo StepBook.`
-  ctx.fillStyle='rgba(255,255,255,.78)'; ctx.font='italic 400 23px "Georgia",serif'
-  wrapTextL(ctx,`"${reflText.slice(0,170)}"`,80,740,W-160,34,4)
-
-  ctx.fillStyle='rgba(255,255,255,.28)'; ctx.font='400 15px sans-serif'
-  ctx.textAlign='right'; ctx.fillText('stepbook.vercel.app',W-80,H-40)
+  dG.addColorStop(0,'transparent');dG.addColorStop(.2,'rgba(212,175,55,.6)');dG.addColorStop(.8,'rgba(212,175,55,.6)');dG.addColorStop(1,'transparent')
+  ctx.strokeStyle=dG;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(80,680);ctx.lineTo(W-80,680);ctx.stroke()
+  const ref=book?.reflections?.filter(r=>r.answered)?.[0]?.answer||`${S.progress}% do livro lido com leitura ativa no StepBook.`
+  ctx.fillStyle='rgba(255,255,255,.78)';ctx.font='italic 400 22px serif';wrapL(ctx,`"${ref.slice(0,170)}"`,80,735,W-160,33,4)
+  ctx.fillStyle='rgba(255,255,255,.28)';ctx.font='400 14px sans-serif';ctx.textAlign='right';ctx.fillText('stepbook.vercel.app',W-80,H-40)
 }
 
-function roundRect(ctx,x,y,w,h,r){
-  ctx.beginPath(); ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y); ctx.arcTo(x+w,y,x+w,y+r,r)
-  ctx.lineTo(x+w,y+h-r); ctx.arcTo(x+w,y+h,x+w-r,y+h,r)
-  ctx.lineTo(x+r,y+h); ctx.arcTo(x,y+h,x,y+h-r,r)
-  ctx.lineTo(x,y+r); ctx.arcTo(x,y,x+r,y,r); ctx.closePath()
+async function buildStoriesCard(canvas, quoteText, bookTitle) {
+  const ctx=canvas.getContext('2d'), W=1080, H=1920
+  canvas.width=W;canvas.height=H
+  ctx.fillStyle='#060c18';ctx.fillRect(0,0,W,H)
+  const glow=ctx.createRadialGradient(W/2,H/2,0,W/2,H/2,800)
+  glow.addColorStop(0,'rgba(212,175,55,.06)');glow.addColorStop(1,'transparent')
+  ctx.fillStyle=glow;ctx.fillRect(0,0,W,H)
+  if(window.innerWidth>=768){for(let i=0;i<4000;i++){ctx.fillStyle=`rgba(255,255,255,${Math.random()*.013})`;ctx.fillRect(Math.random()*W,Math.random()*H,1,1)}}
+  const M=52;ctx.strokeStyle='rgba(212,175,55,.32)';ctx.lineWidth=1.5;ctx.strokeRect(M,M,W-M*2,H-M*2)
+  const CL=64;ctx.strokeStyle='#D4AF37';ctx.lineWidth=2.5;ctx.lineCap='square'
+  ;[[M,M,1,0,0,1],[W-M,M,-1,0,0,1],[M,H-M,1,0,0,-1],[W-M,H-M,-1,0,0,-1]].forEach(([x,y,sx,sy,ex,ey])=>{
+    ctx.beginPath();ctx.moveTo(x+sx*CL,y+sy*CL);ctx.lineTo(x,y);ctx.lineTo(x+ex*CL,y+ey*CL);ctx.stroke()
+    ctx.save();ctx.translate(x,y);ctx.rotate(Math.PI/4);ctx.fillStyle='#D4AF37';ctx.fillRect(-4,-4,8,8);ctx.restore()
+  })
+  const LS=100, LY=M+80
+  const logo=await loadImg(LOGO)
+  if(logo){ctx.save();ctx.shadowColor='rgba(212,175,55,.5)';ctx.shadowBlur=28;ctx.drawImage(logo,W/2-LS/2,LY,LS,LS);ctx.restore()}
+  ctx.textAlign='center';ctx.fillStyle='#D4AF37';ctx.font='400 27px "Playfair Display",serif';ctx.fillText('S T E P B O O K',W/2,LY+LS+44)
+  ctx.fillStyle='rgba(255,255,255,.28)';ctx.font='400 17px "DM Sans",sans-serif';ctx.fillText('LEITURA ATIVA COM IA',W/2,LY+LS+72)
+  const D1=LY+LS+108;drawDiv(ctx,W,D1)
+  const PAD=88, MW=W-PAD*2, TY=D1+65
+  const HDR='Li essa frase pelo ', HDRB='StepBook', HDRE=' que me fez refletir'
+  const HSZ=27
+  ctx.font=`400 ${HSZ}px "Playfair Display",serif`
+  const wN=ctx.measureText(HDR).width, wE=ctx.measureText(HDRE).width
+  ctx.font=`700 ${HSZ}px "Playfair Display",serif`
+  const wB=ctx.measureText(HDRB).width
+  const totH=wN+wB+wE, hx=W/2-totH/2
+  let cy=TY+HSZ
+  ctx.textAlign='left';ctx.fillStyle='rgba(255,255,255,.55)';ctx.font=`400 ${HSZ}px "Playfair Display",serif`;ctx.fillText(HDR,hx,cy)
+  ctx.fillStyle='#D4AF37';ctx.font=`700 ${HSZ}px "Playfair Display",serif`;ctx.fillText(HDRB,hx+wN,cy)
+  ctx.fillStyle='rgba(255,255,255,.55)';ctx.font=`400 ${HSZ}px "Playfair Display",serif`;ctx.fillText(HDRE,hx+wN+wB,cy)
+  cy+=48
+  const rawQ=quoteText.length>140?quoteText.slice(0,137)+'…':quoteText
+  const qFull='\u201c'+rawQ+'\u201d'
+  let qSz=50
+  while(qSz>28){ctx.font=`italic 400 ${qSz}px "Playfair Display",serif`;if(wrapT(ctx,qFull,MW).length<=4)break;qSz-=3}
+  ctx.font=`italic 400 ${qSz}px "Playfair Display",serif`
+  const qLns=wrapT(ctx,qFull,MW), qLH=Math.round(qSz*1.55)
+  let tSz=29
+  while(tSz>20){ctx.font=`600 ${tSz}px "Playfair Display",serif`;if(wrapT(ctx,bookTitle,MW-60).length<=2)break;tSz-=2}
+  ctx.font=`600 ${tSz}px "Playfair Display",serif`
+  const tLns=wrapT(ctx,bookTitle,MW-60), tLH=Math.round(tSz*1.55)
+  const FY=H-M-160, D2=FY-90, ZONE=D2-cy
+  const BH=qLns.length*qLH+52+26+28+tLns.length*tLH
+  cy+=Math.max(0,Math.round((ZONE-BH)/2))
+  ctx.textAlign='center';ctx.fillStyle='rgba(244,239,234,.92)';ctx.font=`italic 400 ${qSz}px "Playfair Display",serif`
+  for(const l of qLns){cy+=qLH;ctx.fillText(l,W/2,cy)}
+  cy+=52;drawMiniDiv(ctx,W,cy);cy+=36
+  ctx.fillStyle='rgba(212,175,55,.62)';ctx.font=`italic 400 26px "Playfair Display",serif`;ctx.fillText('— Livro —',W/2,cy)
+  cy+=28;ctx.fillStyle='#D4AF37';ctx.font=`600 ${tSz}px "Playfair Display",serif`
+  for(const l of tLns){cy+=tLH;ctx.fillText(l,W/2,cy)}
+  drawDiv(ctx,W,D2)
+  ctx.fillStyle='rgba(255,255,255,.48)';ctx.font='500 23px "DM Sans",sans-serif';ctx.fillText('stepbook.vercel.app',W/2,D2+56)
+  ctx.fillStyle='rgba(212,175,55,.38)';ctx.font='italic 400 19px "Playfair Display",serif';ctx.fillText('Leia. Questione. Domine.',W/2,D2+90)
 }
-function wrapTextL(ctx,text,x,y,mw,lh,ml=99){
-  const ws=text.split(' '); let l='',cy=y,n=0
+
+function drawDiv(ctx,W,y){
+  const cx=W/2,hw=270
+  const gl=ctx.createLinearGradient(cx-hw,0,cx-33,0);gl.addColorStop(0,'transparent');gl.addColorStop(1,'rgba(212,175,55,.65)')
+  ctx.strokeStyle=gl;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(cx-hw,y);ctx.lineTo(cx-33,y);ctx.stroke()
+  const gr=ctx.createLinearGradient(cx+33,0,cx+hw,0);gr.addColorStop(0,'rgba(212,175,55,.65)');gr.addColorStop(1,'transparent')
+  ctx.strokeStyle=gr;ctx.beginPath();ctx.moveTo(cx+33,y);ctx.lineTo(cx+hw,y);ctx.stroke()
+  ctx.fillStyle='#D4AF37';ctx.save();ctx.translate(cx,y);ctx.rotate(Math.PI/4);ctx.fillRect(-6,-6,12,12);ctx.restore()
+  ;[-21,21].forEach(o=>{ctx.beginPath();ctx.arc(cx+o,y,2.2,0,Math.PI*2);ctx.fillStyle='rgba(212,175,55,.45)';ctx.fill()})
+}
+
+function drawMiniDiv(ctx,W,y){
+  const cx=W/2,hw=115
+  const g=ctx.createLinearGradient(cx-hw,0,cx+hw,0)
+  g.addColorStop(0,'transparent');g.addColorStop(.4,'rgba(212,175,55,.45)');g.addColorStop(.6,'rgba(212,175,55,.45)');g.addColorStop(1,'transparent')
+  ctx.strokeStyle=g;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(cx-hw,y);ctx.lineTo(cx+hw,y);ctx.stroke()
+  ctx.beginPath();ctx.arc(cx,y,2,0,Math.PI*2);ctx.fillStyle='rgba(212,175,55,.55)';ctx.fill()
+}
+
+function wrapT(ctx,text,maxW){
+  const ws=text.split(' ');let line='',lines=[]
+  for(const w of ws){const t=line+w+' ';if(ctx.measureText(t).width>maxW&&line){lines.push(line.trim());line=w+' '}else line=t}
+  if(line.trim())lines.push(line.trim());return lines
+}
+
+function wrapL(ctx,text,x,y,mw,lh,ml=99){
+  const ws=text.split(' ');let l='',cy=y,n=0
   for(const w of ws){const t=l+w+' ';if(ctx.measureText(t).width>mw&&l){ctx.fillText(l.trim(),x,cy);l=w+' ';cy+=lh;n++;if(n>=ml){ctx.fillText('…',x,cy);return}}else l=t}
   if(l)ctx.fillText(l.trim(),x,cy)
 }
 
-async function canvasToFile(canvas, title) {
-  if (!canvas) return null
-  return new Promise(r => canvas.toBlob(blob => r(blob ? new File([blob], `stepbook-${title.slice(0,20)}.png`, { type:'image/png' }) : null), 'image/png', 1.0))
-}
-function downloadCanvas(canvas, title, mode) {
-  if (!canvas) return
-  const a = document.createElement('a')
-  a.href = canvas.toDataURL('image/png',1.0)
-  a.download = `stepbook-${mode}-${title.replace(/\s+/g,'-').slice(0,30)}.png`
-  a.click(); toast('Imagem salva! ✅')
+function rRect(ctx,x,y,w,h,r){
+  ctx.beginPath();ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.arcTo(x+w,y,x+w,y+r,r);ctx.lineTo(x+w,y+h-r);ctx.arcTo(x+w,y+h,x+w-r,y+h,r);ctx.lineTo(x+r,y+h);ctx.arcTo(x,y+h,x,y+h-r,r);ctx.lineTo(x,y+r);ctx.arcTo(x,y,x+r,y,r);ctx.closePath()
 }
 
-// ── REFLECTION PROMPT ─────────────────────────────────
+function loadImg(src){
+  return new Promise(r=>{const img=new Image();img.crossOrigin='anonymous';img.onload=()=>r(img);img.onerror=()=>r(null);img.src=src})
+}
+
+async function canvasToFile(canvas,title){
+  if(!canvas)return null
+  return new Promise(r=>canvas.toBlob(blob=>r(blob?new File([blob],`stepbook-${title.slice(0,20)}.png`,{type:'image/png'}):null),'image/png',1.0))
+}
+
+function dlCanvas(canvas,title,mode){
+  if(!canvas)return
+  const a=document.createElement('a');a.href=canvas.toDataURL('image/png',1.0);a.download=`stepbook-${mode}-${title.replace(/\s+/g,'-').slice(0,25)}.png`;a.click();toast('Imagem salva! ✅')
+}
+
+// ─── REFLECTION PROMPT ──────────────────────────────────
 function showReflPrompt() {
-  const modal = document.getElementById('refl-modal')
-  if (!modal) return
-  modal.innerHTML = `<div class="overlay center" id="refl-overlay">
-    <div class="modal" style="max-width:420px">
-      <h3 class="modal-title">Você atingiu ${S.reflPrompt}% do livro!</h3>
+  const modal=$('refl-modal'); if(!modal)return
+  modal.innerHTML=`<div class="overlay center" id="refl-ov">
+    <div class="modal" style="max-width:400px">
+      <h3 class="modal-title">Você chegou a ${S.reflPrompt}% do livro!</h3>
       <p class="modal-sub">Registre uma reflexão sobre o que leu até aqui.</p>
-      <textarea class="input" id="refl-text" rows="4" placeholder="O que mais te marcou até aqui?"></textarea>
-      <div class="modal-actions" style="margin-top:16px">
+      <textarea class="inp" id="refl-txt" rows="4" placeholder="O que mais te marcou até aqui?"></textarea>
+      <div class="modal-actions" style="margin-top:14px">
         <button class="btn btn-ghost btn-sm" id="refl-skip">Pular</button>
-        <button class="btn btn-gold btn-sm" id="refl-save">Salvar Reflexão ✨</button>
+        <button class="btn btn-gold btn-sm" id="refl-save">Salvar ✨</button>
       </div>
     </div>
   </div>`
-
-  document.getElementById('refl-overlay').addEventListener('click', e => { if(e.target===e.currentTarget) modal.innerHTML='' })
-  document.getElementById('refl-skip').addEventListener('click', () => modal.innerHTML = '')
-  document.getElementById('refl-save').addEventListener('click', async () => {
-    const text = document.getElementById('refl-text').value.trim()
-    if (!text) { toast('Escreva algo primeiro.'); return }
-    const milestone = S.reflPrompt
-    const ref = {
-      type:'text', answer:text, question:`Reflexão aos ${milestone}%`,
-      answered:true, quality:'good', _milestone:milestone, addedAt:Date.now(),
-    }
-    await saveReflection(S.currentBook.id, ref)
-    modal.innerHTML = ''
-    toast('Reflexão salva! ✨')
+  $('refl-ov').addEventListener('click',e=>{if(e.target===$('refl-ov'))modal.innerHTML=''})
+  $('refl-skip').addEventListener('click',()=>modal.innerHTML='')
+  $('refl-save').addEventListener('click',async()=>{
+    const text=$('refl-txt').value.trim(); if(!text){toast('Escreva algo primeiro.');return}
+    const ms=S.reflPrompt
+    const ref={type:'text',answer:text,question:`Reflexão aos ${ms}%`,answered:true,quality:'good',_milestone:ms,addedAt:Date.now()}
+    await saveReflection(S.book.id,ref); modal.innerHTML=''; toast('Reflexão salva! ✨')
     updateScoreWidget()
-    // Após reflexão final (100%), mostrar tela de conclusão com score
-    if (milestone === 100) {
-      setTimeout(() => showCompletionScreen(), 600)
-    }
+    if(ms===100) setTimeout(()=>showCompletionScreen(),600)
   })
 }
 
-// ── PAYWALL MODAL ─────────────────────────────────────
+// ─── PAYWALL ────────────────────────────────────────────
 function showPaywall() {
-  const overlay = document.createElement('div')
-  overlay.id = 'pw-root'
-  overlay.innerHTML = `<div class="overlay center" id="pw-overlay">
-    <div class="modal" style="max-width:420px">
-      <div style="text-align:center;margin-bottom:24px">
-        <span style="font-size:2.5rem">⭐</span>
-        <h3 class="modal-title" style="margin-top:10px">StepBook Pro</h3>
-        <p class="modal-sub">Desbloqueie livros ilimitados por R$ 6,99/mês</p>
-      </div>
-      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:20px">
-        ${[['📚','Livros ilimitados'],['🤖','IA para avaliação de respostas'],['📊','Cards de compartilhamento'],['🔄','Sincronização entre dispositivos']].map(([icon,label])=>`<div style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--gold-dim);border:1px solid var(--border);border-radius:var(--radius)"><span>${icon}</span><span style="font-size:.88rem;color:var(--text2)">${label}</span></div>`).join('')}
-      </div>
-      <div class="divider"></div>
-      <p style="font-size:.80rem;color:var(--text2);margin-bottom:10px">Tem uma chave de ativação?</p>
-      <div style="display:flex;gap:8px">
-        <input class="input" id="pw-key" placeholder="STEP-MAR26-XXXX" style="letter-spacing:.08em;font-family:monospace;font-size:.85rem" />
-        <button class="btn btn-gold btn-sm" id="pw-activate">Ativar</button>
-      </div>
-      <div class="divider"></div>
-      <a href="https://wa.me/5521999999999?text=Quero+o+Plano+Pro+StepBook" target="_blank" class="btn btn-ghost" style="width:100%;justify-content:center">💬 Contratar via WhatsApp</a>
-      <button class="btn btn-ghost btn-sm" id="pw-close" style="width:100%;margin-top:8px">Fechar</button>
+  const ov=document.createElement('div'); ov.className='overlay center'
+  ov.innerHTML=`<div class="modal" style="max-width:420px">
+    <div style="text-align:center;margin-bottom:20px">
+      <span style="font-size:2.5rem">⭐</span>
+      <h3 class="modal-title" style="margin-top:10px">StepBook Pro</h3>
+      <p class="modal-sub">Livros ilimitados por R$ 6,99/mês</p>
     </div>
+    ${[['📚','Livros ilimitados'],['🤖','IA para avaliação'],['📊','Cards de compartilhamento'],['🔄','Sincronização entre dispositivos']].map(([ic,lb])=>`<div style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--gold-dim);border:1px solid var(--border);border-radius:var(--r);margin-bottom:8px"><span>${ic}</span><span style="font-size:.88rem;color:var(--text2)">${lb}</span></div>`).join('')}
+    <div class="divider"></div>
+    <p style="font-size:.80rem;color:var(--text2);margin-bottom:10px">Tem uma chave de ativação?</p>
+    <div style="display:flex;gap:8px">
+      <input class="inp" id="pw-k" placeholder="STEP-MAR26-XXXX" style="letter-spacing:.08em;font-family:monospace;font-size:.85rem"/>
+      <button class="btn btn-gold btn-sm" id="pw-act">Ativar</button>
+    </div>
+    <div class="divider"></div>
+    <a href="https://wa.me/5521999999999?text=Quero+Pro+StepBook" target="_blank" class="btn btn-ghost" style="width:100%;justify-content:center;margin-bottom:8px">💬 Contratar via WhatsApp</a>
+    <button class="btn btn-ghost btn-sm" id="pw-x" style="width:100%">Fechar</button>
   </div>`
-  document.body.appendChild(overlay)
-
-  const close = () => overlay.remove()
-  document.getElementById('pw-overlay').addEventListener('click', e => { if(e.target===e.currentTarget) close() })
-  document.getElementById('pw-close').addEventListener('click', close)
-  document.getElementById('pw-key').addEventListener('keydown', e => { if(e.key==='Enter') document.getElementById('pw-activate').click() })
-  document.getElementById('pw-activate').addEventListener('click', async () => {
-    const key = document.getElementById('pw-key').value
-    const btn = document.getElementById('pw-activate')
-    btn.disabled = true; btn.textContent = '…'
-    const { ok, msg } = await activateKey(key)
-    toast(msg)
-    if (ok) { close(); render('library') }
-    else { btn.disabled = false; btn.textContent = 'Ativar' }
+  document.body.appendChild(ov)
+  const close=()=>ov.remove()
+  ov.addEventListener('click',e=>{if(e.target===ov)close()})
+  $('pw-x').addEventListener('click',close)
+  $('pw-k').addEventListener('keydown',e=>{if(e.key==='Enter')$('pw-act').click()})
+  $('pw-act').addEventListener('click',async()=>{
+    const key=$('pw-k').value, btn=$('pw-act')
+    btn.disabled=true;btn.textContent='…'
+    const {ok,msg}=await activateKey(key); toast(msg)
+    if(ok){close();render('library')}else{btn.disabled=false;btn.textContent='Ativar'}
   })
 }
 
-// ── DELETE MODAL ──────────────────────────────────────
+// ─── DELETE MODAL ───────────────────────────────────────
 function showDeleteModal(bookId, bookTitle) {
-  // Usar document.body para garantir que o modal não seja destruído pelo render()
-  const overlay = document.createElement('div')
-  overlay.id = 'del-overlay-root'
-  overlay.innerHTML = `<div class="overlay center" id="del-overlay">
-    <div class="modal" style="max-width:380px">
-      <h3 class="modal-title">Remover livro?</h3>
-      <p class="modal-sub">Isso removerá <strong>"${escHtml(bookTitle)}"</strong> da sua biblioteca. Esta ação não pode ser desfeita.</p>
-      <div class="modal-actions">
-        <button class="btn btn-ghost" id="del-cancel">Cancelar</button>
-        <button class="btn btn-danger" id="del-confirm">Remover</button>
-      </div>
+  const ov=document.createElement('div'); ov.className='overlay center'
+  ov.innerHTML=`<div class="modal" style="max-width:360px">
+    <h3 class="modal-title">Remover livro?</h3>
+    <p class="modal-sub">Isso removerá <strong>"${esc(bookTitle)}"</strong>. Ação irreversível.</p>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="del-no">Cancelar</button>
+      <button class="btn btn-danger" id="del-yes">Remover</button>
     </div>
   </div>`
-  document.body.appendChild(overlay)
-
-  const close = () => overlay.remove()
-
-  document.getElementById('del-overlay').addEventListener('click', e => { if(e.target===e.currentTarget) close() })
-  document.getElementById('del-cancel').addEventListener('click', close)
-  document.getElementById('del-confirm').addEventListener('click', async () => {
+  document.body.appendChild(ov)
+  const close=()=>ov.remove()
+  ov.addEventListener('click',e=>{if(e.target===ov)close()})
+  $('del-no').addEventListener('click',close)
+  $('del-yes').addEventListener('click',async()=>{
     close()
-    try {
-      await deleteBook(bookId)
-      toast('Livro removido.')
-      await loadBooks()
-      render('library')
-    } catch { toast('Erro ao remover livro.') }
+    try { await deleteBook(bookId); toast('Livro removido.'); await loadBooks(); render('library') }
+    catch { toast('Erro ao remover.') }
   })
 }
 
-// ── UTILS ─────────────────────────────────────────────
-function escHtml(s) {
-  if (!s) return ''
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')
-}
-
-// ═══════════════════════════════════════════════════════
-// BOOT
-// ═══════════════════════════════════════════════════════
-document.addEventListener('DOMContentLoaded', async () => {
+// ─── BOOT ───────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', async()=>{
   render('loading')
   await initAuth()
-  if (S.user) {
-    await loadBooks()
-    render('library')
-  }
+  if (S.user) { await loadBooks(); render('library') }
+  else render('auth')
 })
 </script>
 </body>
