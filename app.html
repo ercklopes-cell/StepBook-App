@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>StepBook — Leitura Ativa</title>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,400&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 :root{
@@ -155,14 +154,10 @@ textarea.inp{resize:vertical;min-height:80px}
 
 <script>
 // ─── CONFIG ────────────────────────────────────────────
-const SB_URL  = 'https://lmwjkmtdyalqvloudlla.supabase.co'
-const SB_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxtd2prbXRkeWFscXZsb3VkbGxhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM1NDQ2MzMsImV4cCI6MjA4OTEyMDYzM30.e4D-Cm2QJ2dxqtdoNUBMPq2sD5WbCo4eKYCxmYR36qE'
 const LOGO    = 'https://i.ibb.co/Xkfz5QKL/sua-logo-stepbook.png'
-const KEYS    = {'STEP-JAN26-X7K2':1,'STEP-FEV26-M3P9':1,'STEP-MAR26-Q5R1':1,'STEP-ABR26-T8W4':1,'STEP-MAI26-Y2N6':1,'STEP-JUN26-K9P3':1,'STEP-JUL26-H4F7':1,'STEP-AGO26-B6D1':1,'STEP-SET26-C3M8':1,'STEP-OUT26-Z5R2':1,'STEP-NOV26-W7K9':1,'STEP-DEZ26-J1P4':1}
 
 // ─── INIT ───────────────────────────────────────────────
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'
-const db = supabase.createClient(SB_URL, SB_KEY, {auth:{persistSession:true,autoRefreshToken:true}})
 
 // ─── STATE ──────────────────────────────────────────────
 const S = {
@@ -196,84 +191,52 @@ function render(screen) {
 
 // ─── AUTH ───────────────────────────────────────────────
 async function initAuth() {
-  try {
-    const { data } = await db.auth.getSession()
-    if (data?.session?.user) {
-      S.user = data.session.user
-      await loadPlan()
-    } else {
-      S.user = null
-    }
-  } catch { S.user = null }
-
-  db.auth.onAuthStateChange(async (event, session) => {
-    if (event==='SIGNED_IN' && session?.user) {
-      S.user = session.user
-      await loadPlan()
-      await loadBooks()
-      render('library')
-    } else if (event==='SIGNED_OUT') {
-      S.user=null; S.plan='free'; S.books=[]
-      render('auth')
-    }
-  })
+  S.user = {id: 'local-user'}
+  S.plan = 'free'
+  await loadBooks()
+  render('library')
 }
 
 async function loadPlan() {
-  if (!S.user) return
-  try {
-    const { data } = await db.from('profiles').select('plan,plan_expires_at').eq('id',S.user.id).single()
-    S.plan = (data?.plan==='pro' && (!data.plan_expires_at || new Date(data.plan_expires_at)>new Date())) ? 'pro' : 'free'
-  } catch { S.plan='free' }
+  S.plan = 'free'
 }
 
 async function activateKey(key) {
-  const k = key.trim().toUpperCase()
-  if (!KEYS[k]) return {ok:false,msg:'Chave inválida.'}
-  const { data:used } = await db.from('used_keys').select('id').eq('key',k).single()
-  if (used) return {ok:false,msg:'Chave já utilizada.'}
-  const exp = new Date(Date.now()+30*86400000).toISOString()
-  await db.from('profiles').update({plan:'pro',plan_expires_at:exp}).eq('id',S.user.id)
-  await db.from('used_keys').insert({key:k,user_id:S.user.id})
-  S.plan='pro'
-  return {ok:true,msg:`Pro ativado! Válido até ${new Date(exp).toLocaleDateString('pt-BR')}.`}
+  return {ok:false,msg:'Pro não disponível nesta versão local.'}
 }
 
 // ─── BOOKS DB ───────────────────────────────────────────
 async function loadBooks() {
-  if (!S.user) return
-  const { data } = await db.from('books').select('*').eq('user_id',S.user.id).order('added_at',{ascending:false})
-  S.books = data ?? []
+  S.books = JSON.parse(localStorage.getItem('books') || '[]')
 }
 
 async function deleteBook(id) {
-  await db.from('books').delete().eq('id',id)
-  await db.storage.from('pdfs').remove([`${S.user.id}/${id}.pdf`]).catch(()=>{})
-  await db.storage.from('covers').remove([`${S.user.id}/${id}.jpg`]).catch(()=>{})
+  S.books = S.books.filter(b=>b.id !== id)
+  localStorage.setItem('books', JSON.stringify(S.books))
+  localStorage.removeItem('pages-' + id)
 }
 
 async function updateProgress(id, pct) {
-  await db.from('books').update({progress:pct}).eq('id',id).catch(()=>{})
   S.books = S.books.map(b=>b.id===id?{...b,progress:pct}:b)
+  localStorage.setItem('books', JSON.stringify(S.books))
   if (S.book?.id===id) S.book.progress=pct
 }
 
 async function updateQuestions(id, qs) {
-  await db.from('books').update({questions:qs}).eq('id',id).catch(()=>{})
   S.books = S.books.map(b=>b.id===id?{...b,questions:qs}:b)
+  localStorage.setItem('books', JSON.stringify(S.books))
 }
 
 async function saveReflection(id, ref) {
   const book = S.books.find(b=>b.id===id)
   const refs = [...(book?.reflections??[]), ref]
-  await db.from('books').update({reflections:refs}).eq('id',id).catch(()=>{})
   S.books = S.books.map(b=>b.id===id?{...b,reflections:refs}:b)
+  localStorage.setItem('books', JSON.stringify(S.books))
   if (S.book?.id===id) S.book.reflections=refs
 }
 
 async function loadPages(id) {
-  const { data } = await db.from('book_pages').select('page_num,text').eq('book_id',id).order('page_num')
-  if (data) S.pages = data.map(r=>({num:r.page_num,text:r.text}))
+  S.pages = JSON.parse(localStorage.getItem('pages-' + id) || '[]')
 }
 
 // ─── PDF PROCESSING ─────────────────────────────────────
@@ -620,7 +583,6 @@ function bindAuth() {
 }
 
 function renderLibrary() {
-  const pro = S.plan==='pro'
   const booksHTML = S.books.length===0
     ? `<div style="text-align:center;padding:60px 20px">
         <div style="font-size:3rem">📚</div>
@@ -638,8 +600,7 @@ function renderLibrary() {
       <span style="font-family:'Playfair Display',serif;font-size:1rem;font-weight:700;color:var(--gold)">StepBook</span>
       <div style="display:flex;align-items:center;gap:10px">
         ${TG_BTN}
-        <span style="background:var(--gold-dim2);color:var(--gold);border:1px solid var(--border2);border-radius:20px;font-size:.70rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:4px 10px">${pro?'⭐ Pro':'Grátis'}</span>
-        <button class="btn btn-ghost btn-sm" id="btn-out">Sair</button>
+        <span style="background:var(--gold-dim2);color:var(--gold);border:1px solid var(--border2);border-radius:20px;font-size:.70rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:4px 10px">Local</span>
       </div>
     </nav>
 
@@ -651,11 +612,6 @@ function renderLibrary() {
         </h1>
         <p style="color:var(--text2);font-size:.9rem">Importe seu PDF. Responda perguntas. Domine o conteúdo.</p>
       </header>
-
-      ${!pro?`<div style="display:flex;align-items:center;justify-content:space-between;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:12px 16px;margin-bottom:20px">
-        <span style="font-size:.84rem;color:var(--text2)">Grátis · ${S.books.length}/1 livro</span>
-        <button class="btn btn-gold btn-sm" id="btn-pro">Upgrade Pro ⭐</button>
-      </div>`:''}
 
       <div class="dropzone" id="dropzone">
         <div style="font-size:2rem;margin-bottom:10px">📄</div>
@@ -695,8 +651,8 @@ function renderBookCard(book) {
 }
 
 function bindLibrary() {
-  $('btn-out')?.addEventListener('click',()=>db.auth.signOut())
-  $('btn-pro')?.addEventListener('click',showPaywall)
+  // $('btn-out')?.addEventListener('click',()=>db.auth.signOut())
+  $('btn-pro')?.addEventListener('click',()=>toast('Pro não disponível nesta versão local.'))
 
   // DROPZONE — input cobre toda a área
   const dz=$('dropzone'), fi=$('file-input')
@@ -733,14 +689,15 @@ function bindLibrary() {
     inp.addEventListener('change',async e=>{
       const f=e.target.files?.[0]; if(!f)return
       const id=inp.id.replace('cov-','')
-      try {
-        const path=`${S.user.id}/${id}.jpg`
-        await db.storage.from('covers').upload(path,f,{upsert:true,contentType:'image/jpeg'})
-        const {data}=db.storage.from('covers').getPublicUrl(path)
-        await db.from('books').update({cover_url:data.publicUrl}).eq('id',id)
-        S.books=S.books.map(b=>b.id===id?{...b,cover_url:data.publicUrl}:b)
-        render('library'); toast('Capa atualizada!')
-      } catch { toast('Erro ao atualizar capa.') }
+      const reader = new FileReader()
+      reader.onload = () => {
+        const b64 = reader.result.split(',')[1]
+        S.books = S.books.map(b=>b.id===id ? {...b, cover_b64: b64} : b)
+        localStorage.setItem('books', JSON.stringify(S.books))
+        render('library')
+        toast('Capa atualizada!')
+      }
+      reader.readAsDataURL(f)
     })
   })
 
@@ -761,8 +718,6 @@ function startImport(file) {
   if (!name.toLowerCase().includes('.pdf') && file.type && !file.type.includes('pdf')) {
     toast('Por favor, selecione um arquivo PDF.'); return
   }
-  const pro = S.plan==='pro'
-  if (!pro && S.books.length>=1) { showPaywall(); return }
   runImport(file)
 }
 
@@ -770,18 +725,7 @@ async function runImport(file) {
   S.importError=null; S.importStep=0; S.importMsg=''; render('importing')
 
   try {
-    // STEP 0 — Salvar PDF no Storage ANTES de qualquer processamento
-    // Isso testa conectividade e garante que o arquivo está seguro
-    S.importMsg='Enviando PDF...'; updateImportUI()
-
     const rawTitle = cleanTitle(file.name||'Livro')
-    const tempId = crypto.randomUUID()
-    const pdfPath = `${S.user.id}/${tempId}.pdf`
-
-    S.importMsg=`Salvando PDF (${(file.size/1024/1024).toFixed(1)}MB)...`; updateImportUI()
-    const { error: upErr } = await db.storage.from('pdfs').upload(pdfPath, file, {upsert:true})
-    if (upErr) throw new Error(`Falha ao salvar PDF: ${upErr.message}`)
-    S.importMsg='PDF salvo! Processando...'; updateImportUI()
 
     // STEP 1 — Ler PDF com PDF.js
     S.importStep=1; S.importMsg='Lendo o PDF...'; updateImportUI()
@@ -791,7 +735,6 @@ async function runImport(file) {
       pages=cleanPages(r.pages); total=r.total
       S.importMsg=`${total} páginas lidas`; updateImportUI()
     } catch(e) {
-      // PDF.js falhou — criar livro vazio, páginas serão carregadas depois
       console.warn('PDF.js falhou:', e.message)
       total=1
       pages=[{num:1, text:'Texto não disponível — erro ao ler PDF.'}]
@@ -821,41 +764,32 @@ async function runImport(file) {
     } catch(e) { console.warn('Perguntas:', e.message) }
     questions = injectCheckpoints(questions, total)
 
-    // STEP 4 — Salvar livro no banco
+    // STEP 4 — Salvar livro localmente
     S.importStep=4; S.importMsg='Salvando na biblioteca...'; updateImportUI()
 
-    const {data:saved, error:saveErr} = await db.from('books').insert({
-      user_id:     S.user.id,
-      title:       title,
-      author:      meta.author||'Autor desconhecido',
-      cover_url:   meta.coverUrl||null,
-      emoji:       guessEmoji(title),
+    const bookId = crypto.randomUUID()
+    const book = {
+      id: bookId,
+      title: title,
+      author: meta.author||'Autor desconhecido',
+      cover_url: meta.coverUrl||null,
+      emoji: guessEmoji(title),
       description: (meta.description||'').slice(0,500),
-      chapters:    chapters,
-      questions:   questions,
+      chapters: chapters,
+      questions: questions,
       reflections: [],
       total_pages: total,
-      progress:    0,
-      added_at:    new Date().toISOString(),
-      updated_at:  new Date().toISOString(),
-    }).select('id').single()
-
-    if (saveErr) throw new Error(`Banco: ${saveErr.message}`)
-    const bookId = saved.id
-
-    // Renomear PDF para o ID real do livro
-    db.storage.from('pdfs').move(pdfPath, `${S.user.id}/${bookId}.pdf`).catch(()=>{})
+      progress: 0,
+      added_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }
+    S.books.push(book)
+    localStorage.setItem('books', JSON.stringify(S.books))
 
     S.importMsg='Abrindo...'; updateImportUI()
-    await loadBooks()
-    const book = S.books.find(b=>b.id===bookId) || {
-      id:bookId, title, author:meta.author||'Autor desconhecido',
-      cover_url:meta.coverUrl||null, emoji:guessEmoji(title),
-      chapters, questions, reflections:[], total_pages:total, progress:0
-    }
     openBook(book, pages)
 
-    // Páginas em background
+    // Salvar páginas localmente
     if (pages.length>1) savePagesBackground(bookId, pages)
 
   } catch(err) {
@@ -866,15 +800,7 @@ async function runImport(file) {
 }
 
 function savePagesBackground(bookId, pages) {
-  const mob = isMob()
-  const BATCH = mob ? 15 : 80
-  ;(async()=>{
-    for (let i=0;i<pages.length;i+=BATCH) {
-      const rows = pages.slice(i,i+BATCH).map(p=>({book_id:bookId,page_num:p.num,text:p.text}))
-      await db.from('book_pages').upsert(rows,{onConflict:'book_id,page_num'}).catch(()=>{})
-      if (mob) await new Promise(r=>setTimeout(r,80))
-    }
-  })()
+  localStorage.setItem('pages-' + bookId, JSON.stringify(pages))
 }
 
 // ─── OPEN BOOK ──────────────────────────────────────────
@@ -1365,24 +1291,8 @@ function showReflPrompt() {
 
 // ─── PAYWALL ────────────────────────────────────────────
 function showPaywall() {
-  const ov=document.createElement('div'); ov.className='overlay center'
-  ov.innerHTML=`<div class="modal" style="max-width:420px">
-    <div style="text-align:center;margin-bottom:20px">
-      <span style="font-size:2.5rem">⭐</span>
-      <h3 class="modal-title" style="margin-top:10px">StepBook Pro</h3>
-      <p class="modal-sub">Livros ilimitados por R$ 6,99/mês</p>
-    </div>
-    ${[['📚','Livros ilimitados'],['🤖','IA para avaliação'],['📊','Cards de compartilhamento'],['🔄','Sincronização entre dispositivos']].map(([ic,lb])=>`<div style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--gold-dim);border:1px solid var(--border);border-radius:var(--r);margin-bottom:8px"><span>${ic}</span><span style="font-size:.88rem;color:var(--text2)">${lb}</span></div>`).join('')}
-    <div class="divider"></div>
-    <p style="font-size:.80rem;color:var(--text2);margin-bottom:10px">Tem uma chave de ativação?</p>
-    <div style="display:flex;gap:8px">
-      <input class="inp" id="pw-k" placeholder="STEP-MAR26-XXXX" style="letter-spacing:.08em;font-family:monospace;font-size:.85rem"/>
-      <button class="btn btn-gold btn-sm" id="pw-act">Ativar</button>
-    </div>
-    <div class="divider"></div>
-    <a href="https://wa.me/5521999999999?text=Quero+Pro+StepBook" target="_blank" class="btn btn-ghost" style="width:100%;justify-content:center;margin-bottom:8px">💬 Contratar via WhatsApp</a>
-    <button class="btn btn-ghost btn-sm" id="pw-x" style="width:100%">Fechar</button>
-  </div>`
+  toast('Pro não disponível nesta versão local.')
+}
   document.body.appendChild(ov)
   const close=()=>ov.remove()
   ov.addEventListener('click',e=>{if(e.target===ov)close()})
