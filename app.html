@@ -154,12 +154,185 @@ textarea.inp{resize:vertical;min-height:80px}
 
 <script>
 // ─── CONFIG ────────────────────────────────────────────
-const LOGO    = 'https://i.ibb.co/Xkfz5QKL/sua-logo-stepbook.png'
+const LOGO = 'https://i.ibb.co/Xkfz5QKL/sua-logo-stepbook.png'
+const KEYS = {'STEP-JAN26-X7K2':1,'STEP-FEV26-M3P9':1,'STEP-MAR26-Q5R1':1,'STEP-ABR26-T8W4':1,'STEP-MAI26-Y2N6':1,'STEP-JUN26-K9P3':1,'STEP-JUL26-H4F7':1,'STEP-AGO26-B6D1':1,'STEP-SET26-C3M8':1,'STEP-OUT26-Z5R2':1,'STEP-NOV26-W7K9':1,'STEP-DEZ26-J1P4':1}
+
+// ─── LOCAL DB (IndexedDB) ───────────────────────────────
+const DB_NAME = 'stepbook', DB_VER = 2
+let _db = null
+
+function openDB() {
+  if (_db) return Promise.resolve(_db)
+  return new Promise((res, rej) => {
+    const req = indexedDB.open(DB_NAME, DB_VER)
+    req.onupgradeneeded = e => {
+      const db = e.target.result
+      if (!db.objectStoreNames.contains('books'))
+        db.createObjectStore('books', {keyPath:'id'})
+      if (!db.objectStoreNames.contains('pages'))
+        db.createObjectStore('pages', {keyPath:'id'}) // id = bookId
+    }
+    req.onsuccess = e => { _db = e.target.result; res(_db) }
+    req.onerror   = e => rej(e.target.error)
+  })
+}
+
+function dbGet(store, key) {
+  return openDB().then(db => new Promise((res, rej) => {
+    const tx = db.transaction(store, 'readonly')
+    const req = tx.objectStore(store).get(key)
+    req.onsuccess = () => res(req.result)
+    req.onerror   = e => rej(e.target.error)
+  }))
+}
+
+function dbPut(store, value) {
+  return openDB().then(db => new Promise((res, rej) => {
+    const tx = db.transaction(store, 'readwrite')
+    const req = tx.objectStore(store).put(value)
+    req.onsuccess = () => res(req.result)
+    req.onerror   = e => rej(e.target.error)
+  }))
+}
+
+function dbDelete(store, key) {
+  return openDB().then(db => new Promise((res, rej) => {
+    const tx = db.transaction(store, 'readwrite')
+    const req = tx.objectStore(store).delete(key)
+    req.onsuccess = () => res()
+    req.onerror   = e => rej(e.target.error)
+  }))
+}
+
+function dbGetAll(store) {
+  return openDB().then(db => new Promise((res, rej) => {
+    const tx = db.transaction(store, 'readonly')
+    const req = tx.objectStore(store).getAll()
+    req.onsuccess = () => res(req.result)
+    req.onerror   = e => rej(e.target.error)
+  }))
+}
+
+// ─── AUTH LOCAL ─────────────────────────────────────────
+// Sem servidor — auth simples por email+senha guardados localmente
+function lsGet(k)    { try { return JSON.parse(localStorage.getItem(k)) } catch { return null } }
+function lsSet(k, v) { localStorage.setItem(k, JSON.stringify(v)) }
+function lsDel(k)    { localStorage.removeItem(k) }
+
+function hashStr(s) {
+  let h = 0
+  for (let i = 0; i < s.length; i++) h = (Math.imul(31, h) + s.charCodeAt(i)) | 0
+  return Math.abs(h).toString(36)
+}
+
+async function initAuth() {
+  const session = lsGet('sb_session')
+  if (session?.user) {
+    S.user = session.user
+    S.plan = session.plan || 'free'
+  } else {
+    S.user = null
+  }
+}
+
+async function signUp(email, pass) {
+  const uid = 'u_' + hashStr(email.toLowerCase())
+  const existing = lsGet('acc_' + uid)
+  if (existing) throw new Error('E-mail já cadastrado.')
+  const user = { id: uid, email }
+  lsSet('acc_' + uid, { email, passHash: hashStr(pass) })
+  lsSet('sb_session', { user, plan: 'free' })
+  S.user = user; S.plan = 'free'
+}
+
+async function signIn(email, pass) {
+  const uid = 'u_' + hashStr(email.toLowerCase())
+  const acc = lsGet('acc_' + uid)
+  if (!acc || acc.passHash !== hashStr(pass)) throw new Error('E-mail ou senha incorretos.')
+  const user = { id: uid, email }
+  const plan = lsGet('plan_' + uid) || 'free'
+  lsSet('sb_session', { user, plan })
+  S.user = user; S.plan = plan
+}
+
+function signOut() {
+  lsDel('sb_session')
+  S.user = null; S.plan = 'free'; S.books = []
+  render('auth')
+}
+
+async function activateKey(key) {
+  const k = key.trim().toUpperCase()
+  if (!KEYS[k]) return { ok: false, msg: 'Chave inválida.' }
+  const usedKeys = lsGet('used_keys') || {}
+  if (usedKeys[k]) return { ok: false, msg: 'Chave já utilizada.' }
+  usedKeys[k] = S.user.id
+  lsSet('used_keys', usedKeys)
+  lsSet('plan_' + S.user.id, 'pro')
+  const session = lsGet('sb_session')
+  if (session) { session.plan = 'pro'; lsSet('sb_session', session) }
+  S.plan = 'pro'
+  return { ok: true, msg: 'Pro ativado! Livros ilimitados liberados.' }
+}
+
+// ─── BOOKS LOCAL ────────────────────────────────────────
+async function loadBooks() {
+  if (!S.user) return
+  const all = await dbGetAll('books')
+  S.books = all
+    .filter(b => b.userId === S.user.id)
+    .sort((a, b) => new Date(b.added_at) - new Date(a.added_at))
+}
+
+async function saveBook(book) {
+  const b = { ...book, userId: S.user.id }
+  await dbPut('books', b)
+  return b
+}
+
+async function deleteBook(id) {
+  await dbDelete('books', id)
+  await dbDelete('pages', id)
+}
+
+async function updateProgress(id, pct) {
+  const book = await dbGet('books', id)
+  if (!book) return
+  book.progress = pct
+  await dbPut('books', book)
+  S.books = S.books.map(b => b.id === id ? { ...b, progress: pct } : b)
+  if (S.book?.id === id) S.book.progress = pct
+}
+
+async function updateQuestions(id, qs) {
+  const book = await dbGet('books', id)
+  if (!book) return
+  book.questions = qs
+  await dbPut('books', book)
+  S.books = S.books.map(b => b.id === id ? { ...b, questions: qs } : b)
+}
+
+async function saveReflection(id, ref) {
+  const book = await dbGet('books', id)
+  if (!book) return
+  book.reflections = [...(book.reflections || []), ref]
+  await dbPut('books', book)
+  S.books = S.books.map(b => b.id === id ? { ...b, reflections: book.reflections } : b)
+  if (S.book?.id === id) S.book.reflections = book.reflections
+}
+
+async function savePages(bookId, pages) {
+  await dbPut('pages', { id: bookId, pages })
+}
+
+async function loadPages(bookId) {
+  const rec = await dbGet('pages', bookId)
+  if (rec?.pages) S.pages = rec.pages
+}
 
 // ─── INIT ───────────────────────────────────────────────
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'
 
-// ─── STATE ──────────────────────────────────────────────
 const S = {
   user:null, plan:'free', books:[], book:null,
   pages:[], questions:[], progress:0,
@@ -189,55 +362,6 @@ function render(screen) {
   if (screen==='reader')    { app.innerHTML = renderReader(); bindReader(); return }
 }
 
-// ─── AUTH ───────────────────────────────────────────────
-async function initAuth() {
-  S.user = {id: 'local-user'}
-  S.plan = 'free'
-  await loadBooks()
-  render('library')
-}
-
-async function loadPlan() {
-  S.plan = 'free'
-}
-
-async function activateKey(key) {
-  return {ok:false,msg:'Pro não disponível nesta versão local.'}
-}
-
-// ─── BOOKS DB ───────────────────────────────────────────
-async function loadBooks() {
-  S.books = JSON.parse(localStorage.getItem('books') || '[]')
-}
-
-async function deleteBook(id) {
-  S.books = S.books.filter(b=>b.id !== id)
-  localStorage.setItem('books', JSON.stringify(S.books))
-  localStorage.removeItem('pages-' + id)
-}
-
-async function updateProgress(id, pct) {
-  S.books = S.books.map(b=>b.id===id?{...b,progress:pct}:b)
-  localStorage.setItem('books', JSON.stringify(S.books))
-  if (S.book?.id===id) S.book.progress=pct
-}
-
-async function updateQuestions(id, qs) {
-  S.books = S.books.map(b=>b.id===id?{...b,questions:qs}:b)
-  localStorage.setItem('books', JSON.stringify(S.books))
-}
-
-async function saveReflection(id, ref) {
-  const book = S.books.find(b=>b.id===id)
-  const refs = [...(book?.reflections??[]), ref]
-  S.books = S.books.map(b=>b.id===id?{...b,reflections:refs}:b)
-  localStorage.setItem('books', JSON.stringify(S.books))
-  if (S.book?.id===id) S.book.reflections=refs
-}
-
-async function loadPages(id) {
-  S.pages = JSON.parse(localStorage.getItem('pages-' + id) || '[]')
-}
 
 // ─── PDF PROCESSING ─────────────────────────────────────
 async function readPDF(file) {
@@ -571,10 +695,12 @@ function bindAuth() {
   $('auth-form').onsubmit=async(e)=>{
     e.preventDefault()
     btn.disabled=true; btn.innerHTML='<span class="spin spin-sm"></span>'
-    const email=$('auth-email').value, pass=$('auth-pass').value
+    const email=$('auth-email').value.trim(), pass=$('auth-pass').value
     try {
-      if (mode==='login') await db.auth.signInWithPassword({email,password:pass}).then(r=>{if(r.error)throw r.error})
-      else { const {error}=await db.auth.signUp({email,password:pass}); if(error)throw error; toast('Conta criada! Verifique seu e-mail.') }
+      if (mode==='login') await signIn(email, pass)
+      else await signUp(email, pass)
+      await loadBooks()
+      render('library')
     } catch(err) {
       toast(err.message||'Erro ao entrar.')
       btn.disabled=false; btn.textContent=mode==='login'?'Entrar':'Criar conta'
@@ -583,6 +709,7 @@ function bindAuth() {
 }
 
 function renderLibrary() {
+  const pro = S.plan==='pro'
   const booksHTML = S.books.length===0
     ? `<div style="text-align:center;padding:60px 20px">
         <div style="font-size:3rem">📚</div>
@@ -600,7 +727,8 @@ function renderLibrary() {
       <span style="font-family:'Playfair Display',serif;font-size:1rem;font-weight:700;color:var(--gold)">StepBook</span>
       <div style="display:flex;align-items:center;gap:10px">
         ${TG_BTN}
-        <span style="background:var(--gold-dim2);color:var(--gold);border:1px solid var(--border2);border-radius:20px;font-size:.70rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:4px 10px">Local</span>
+        <span style="background:var(--gold-dim2);color:var(--gold);border:1px solid var(--border2);border-radius:20px;font-size:.70rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:4px 10px">${pro?'⭐ Pro':'Grátis'}</span>
+        <button class="btn btn-ghost btn-sm" id="btn-out">Sair</button>
       </div>
     </nav>
 
@@ -612,6 +740,11 @@ function renderLibrary() {
         </h1>
         <p style="color:var(--text2);font-size:.9rem">Importe seu PDF. Responda perguntas. Domine o conteúdo.</p>
       </header>
+
+      ${!pro?`<div style="display:flex;align-items:center;justify-content:space-between;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:12px 16px;margin-bottom:20px">
+        <span style="font-size:.84rem;color:var(--text2)">Grátis · ${S.books.length}/1 livro</span>
+        <button class="btn btn-gold btn-sm" id="btn-pro">Upgrade Pro ⭐</button>
+      </div>`:''}
 
       <div class="dropzone" id="dropzone">
         <div style="font-size:2rem;margin-bottom:10px">📄</div>
@@ -651,8 +784,8 @@ function renderBookCard(book) {
 }
 
 function bindLibrary() {
-  // $('btn-out')?.addEventListener('click',()=>db.auth.signOut())
-  $('btn-pro')?.addEventListener('click',()=>toast('Pro não disponível nesta versão local.'))
+  $('btn-out')?.addEventListener('click', signOut)
+  $('btn-pro')?.addEventListener('click',showPaywall)
 
   // DROPZONE — input cobre toda a área
   const dz=$('dropzone'), fi=$('file-input')
@@ -687,21 +820,20 @@ function bindLibrary() {
   })
   document.querySelectorAll('[id^="cov-"]').forEach(inp=>{
     inp.addEventListener('change',async e=>{
-      const f=e.target.files?.[0]; if(!f)return
+      const f=e.target.files?.[0]; if(!f) return
       const id=inp.id.replace('cov-','')
-      const reader = new FileReader()
-      reader.onload = () => {
-        const b64 = reader.result.split(',')[1]
-        S.books = S.books.map(b=>b.id===id ? {...b, cover_b64: b64} : b)
-        localStorage.setItem('books', JSON.stringify(S.books))
-        render('library')
-        toast('Capa atualizada!')
-      }
-      reader.readAsDataURL(f)
+      try {
+        const b64 = await new Promise((res,rej)=>{
+          const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=rej; r.readAsDataURL(f)
+        })
+        const book = await dbGet('books', id)
+        if (book) { book.cover_b64=b64; await dbPut('books',book) }
+        S.books=S.books.map(b=>b.id===id?{...b,cover_b64:b64}:b)
+        render('library'); toast('Capa atualizada!')
+      } catch { toast('Erro ao atualizar capa.') }
     })
   })
 
-  // Delete
   document.querySelectorAll('[data-del]').forEach(btn=>{
     btn.addEventListener('click',e=>{
       e.stopPropagation()
@@ -718,6 +850,8 @@ function startImport(file) {
   if (!name.toLowerCase().includes('.pdf') && file.type && !file.type.includes('pdf')) {
     toast('Por favor, selecione um arquivo PDF.'); return
   }
+  const pro = S.plan==='pro'
+  if (!pro && S.books.length>=1) { showPaywall(); return }
   runImport(file)
 }
 
@@ -725,20 +859,16 @@ async function runImport(file) {
   S.importError=null; S.importStep=0; S.importMsg=''; render('importing')
 
   try {
-    const rawTitle = cleanTitle(file.name||'Livro')
-
-    // STEP 1 — Ler PDF com PDF.js
+    // STEP 0 — Ler PDF imediatamente (storage em background)
     S.importStep=1; S.importMsg='Lendo o PDF...'; updateImportUI()
+    const rawTitle = cleanTitle(file.name||'Livro')
     let pages=[], total=0
     try {
       const r = await readPDF(file)
       pages=cleanPages(r.pages); total=r.total
       S.importMsg=`${total} páginas lidas`; updateImportUI()
     } catch(e) {
-      console.warn('PDF.js falhou:', e.message)
-      total=1
-      pages=[{num:1, text:'Texto não disponível — erro ao ler PDF.'}]
-      S.importMsg='Aviso: leitura parcial. Continuando...'; updateImportUI()
+      throw new Error(`Falha ao ler PDF: ${e.message}`)
     }
 
     // STEP 2 — Metadados + Capítulos
@@ -764,33 +894,32 @@ async function runImport(file) {
     } catch(e) { console.warn('Perguntas:', e.message) }
     questions = injectCheckpoints(questions, total)
 
-    // STEP 4 — Salvar livro localmente
+    // STEP 4 — Salvar localmente (IndexedDB)
     S.importStep=4; S.importMsg='Salvando na biblioteca...'; updateImportUI()
 
-    const bookId = crypto.randomUUID()
+    const bookId = 'b_' + Date.now() + '_' + Math.random().toString(36).slice(2,7)
     const book = {
-      id: bookId,
-      title: title,
-      author: meta.author||'Autor desconhecido',
-      cover_url: meta.coverUrl||null,
-      emoji: guessEmoji(title),
+      id:          bookId,
+      title:       title,
+      author:      meta.author||'Autor desconhecido',
+      cover_url:   meta.coverUrl||null,
+      cover_b64:   null,
+      emoji:       guessEmoji(title),
       description: (meta.description||'').slice(0,500),
-      chapters: chapters,
-      questions: questions,
+      chapters:    chapters,
+      questions:   questions,
       reflections: [],
       total_pages: total,
-      progress: 0,
-      added_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+      progress:    0,
+      added_at:    new Date().toISOString(),
     }
-    S.books.push(book)
-    localStorage.setItem('books', JSON.stringify(S.books))
+
+    await saveBook(book)
+    await savePages(bookId, pages)
+    await loadBooks()
 
     S.importMsg='Abrindo...'; updateImportUI()
     openBook(book, pages)
-
-    // Salvar páginas localmente
-    if (pages.length>1) savePagesBackground(bookId, pages)
 
   } catch(err) {
     console.error('[Import]', err)
@@ -799,9 +928,6 @@ async function runImport(file) {
   }
 }
 
-function savePagesBackground(bookId, pages) {
-  localStorage.setItem('pages-' + bookId, JSON.stringify(pages))
-}
 
 // ─── OPEN BOOK ──────────────────────────────────────────
 async function openBook(book, preloaded) {
@@ -1291,8 +1417,24 @@ function showReflPrompt() {
 
 // ─── PAYWALL ────────────────────────────────────────────
 function showPaywall() {
-  toast('Pro não disponível nesta versão local.')
-}
+  const ov=document.createElement('div'); ov.className='overlay center'
+  ov.innerHTML=`<div class="modal" style="max-width:420px">
+    <div style="text-align:center;margin-bottom:20px">
+      <span style="font-size:2.5rem">⭐</span>
+      <h3 class="modal-title" style="margin-top:10px">StepBook Pro</h3>
+      <p class="modal-sub">Livros ilimitados por R$ 6,99/mês</p>
+    </div>
+    ${[['📚','Livros ilimitados'],['🤖','IA para avaliação'],['📊','Cards de compartilhamento'],['🔄','Sincronização entre dispositivos']].map(([ic,lb])=>`<div style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--gold-dim);border:1px solid var(--border);border-radius:var(--r);margin-bottom:8px"><span>${ic}</span><span style="font-size:.88rem;color:var(--text2)">${lb}</span></div>`).join('')}
+    <div class="divider"></div>
+    <p style="font-size:.80rem;color:var(--text2);margin-bottom:10px">Tem uma chave de ativação?</p>
+    <div style="display:flex;gap:8px">
+      <input class="inp" id="pw-k" placeholder="STEP-MAR26-XXXX" style="letter-spacing:.08em;font-family:monospace;font-size:.85rem"/>
+      <button class="btn btn-gold btn-sm" id="pw-act">Ativar</button>
+    </div>
+    <div class="divider"></div>
+    <a href="https://wa.me/5521999999999?text=Quero+Pro+StepBook" target="_blank" class="btn btn-ghost" style="width:100%;justify-content:center;margin-bottom:8px">💬 Contratar via WhatsApp</a>
+    <button class="btn btn-ghost btn-sm" id="pw-x" style="width:100%">Fechar</button>
+  </div>`
   document.body.appendChild(ov)
   const close=()=>ov.remove()
   ov.addEventListener('click',e=>{if(e.target===ov)close()})
